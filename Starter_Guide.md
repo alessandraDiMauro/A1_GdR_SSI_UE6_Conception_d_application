@@ -100,6 +100,68 @@ Ouvrez votre navigateur et allez à l'URL [http://127.0.0.1:8000/docs](http://12
 
 Cliquez dessus pour le tester et voir la réponse `{"message": "Hello there, General Kenobi !"}`.
 
+## 5. Écrire et lancer un test
+
+Tester son code est une étape cruciale pour s'assurer de sa qualité et éviter les régressions. Nous allons ajouter un test pour le point de terminaison `/hello` que vous venez de créer.
+
+### a. Installer les dépendances de test
+
+Nous avons défini des dépendances spécifiques pour les tests. Installez-les avec `uv` :
+
+```shell
+uv pip install -e ".[test]"
+```
+Cela installera `pytest`, un lanceur de tests populaire, et `httpx` pour envoyer des requêtes à notre API dans les tests.
+
+### b. Créer le fichier de test
+
+Créez un nouveau fichier nommé `si_barrage/tests/test_main.py`. Le nom du fichier doit commencer par `test_` pour que `pytest` le découvre automatiquement.
+
+### c. Écrire le test
+
+Ouvrez le fichier `si_barrage/tests/test_main.py` et ajoutez le code suivant :
+
+```python
+from fastapi.testclient import TestClient
+from si_barrage.main import app
+
+# Crée un client de test pour notre application FastAPI
+client = TestClient(app)
+
+def test_read_hello():
+    """
+    Vérifie que le point de terminaison /hello fonctionne correctement.
+    """
+    # Envoie une requête GET à l'endpoint /hello
+    response = client.get("/hello")
+    
+    # Vérifie que le code de statut est 200 (OK)
+    assert response.status_code == 200
+    
+    # Vérifie que le contenu de la réponse est correct
+    assert response.json() == {"message": "Hello there, General Kenobi !"}
+
+def test_read_root():
+    """
+    Vérifie le point de terminaison racine.
+    """
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.json() == {"message": "Bienvenue sur l'API du SI Barrage"}
+```
+
+Ce test utilise le `TestClient` de FastAPI pour simuler des requêtes à notre application sans avoir besoin de lancer un serveur réel.
+
+### d. Lancer les tests
+
+Maintenant, pour lancer tous les tests du projet, exécutez la commande `uv run pytest` à la racine du projet :
+
+```shell
+pytest
+```
+
+`pytest` va automatiquement trouver et exécuter tous les tests dans le dossier `si_barrage/tests`. Si tout se passe bien, vous devriez voir un message indiquant que les tests ont réussi !
+
 ## Et après ?
 
 Félicitations ! Vous avez cloné, configuré et modifié le projet avec succès.

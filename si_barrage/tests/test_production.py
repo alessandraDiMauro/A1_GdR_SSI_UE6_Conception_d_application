@@ -1,9 +1,13 @@
-# Tests pour le module production
-import unittest
+from fastapi.testclient import TestClient
+from si_barrage.main import app
 
-class TestProduction(unittest.TestCase):
-    def test_example(self):
-        self.assertEqual(1, 1)
+client = TestClient(app)
 
-if __name__ == '__main__':
-    unittest.main()
+def test_get_historique():
+    """
+    Test the /production/historique endpoint.
+    """
+    response = client.get("/production/historique")
+    assert response.status_code == 200
+    assert response.json() == {"message": "Historique de production"}
+

@@ -1,9 +1,13 @@
-# Tests pour le module météo
-import unittest
+from fastapi.testclient import TestClient
+from si_barrage.main import app
 
-class TestMeteo(unittest.TestCase):
-    def test_example(self):
-        self.assertEqual(1, 1)
+client = TestClient(app)
 
-if __name__ == '__main__':
-    unittest.main()
+def test_get_releves():
+    """
+    Test the /meteo/releves endpoint.
+    """
+    response = client.get("/meteo/releves")
+    assert response.status_code == 200
+    assert response.json() == {"message": "Relevés météo"}
+
