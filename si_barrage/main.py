@@ -1,8 +1,8 @@
 # Point d'entrée de l'application FastAPI principale
 from fastapi import FastAPI
-from modules.meteo import router as meteo_router
-from modules.maintenance import router as maintenance_router
-from modules.production import router as production_router
+from .modules.meteo import router as meteo_router
+from .modules.maintenance import router as maintenance_router
+from .modules.production import router as production_router
 
 app = FastAPI(
     title="SI Barrage",
