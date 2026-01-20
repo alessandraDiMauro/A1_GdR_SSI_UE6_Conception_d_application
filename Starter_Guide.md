@@ -29,7 +29,7 @@ Si vous ne l'avez pas encore, installez `uv` avec la commande suivante :
 # macOS & Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Windows
+# Windows (PowerShell)
 irm https://astral.sh/uv/install.ps1 | iex
 ```
 
