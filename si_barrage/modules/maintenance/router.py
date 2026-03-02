@@ -4,13 +4,9 @@ from pydantic import BaseModel
 from si_barrage.db import get_db
 from sqlalchemy.orm import Session
 from fastapi import FastAPI, Depends
+from sqlalchemy import text
 
 router = APIRouter()
-
-@router.get("/tickets")
-def get_tickets():
-    # Logique pour récupérer les tickets de maintenance
-    return {"message": "Tickets de maintenance"}
 
 class TicketCreate(BaseModel):
     nom: str
@@ -27,8 +23,12 @@ def create_ticket(ticket: TicketCreate, db: Session = Depends(get_db)):
         my_description = (
             f"{ticket.description}, technicien: {ticket.nom}, niv_urgence: {ticket.niv_urgence}"
         )
-        sql = "INSERT INTO maintenance (id_equipement, nom_equipement, statut, description, date_creation) VALUES (:id_equipement, :nom_equipement, :statut, :description, :date_creation)"
-
+        sql = text("""
+    INSERT INTO maintenance 
+    (id_equipement, nom_equipement, statut, description, date_creation) 
+    VALUES (:id_equipement, :nom_equipement, :statut, :description, :date_creation)
+""")
+        print("sql")
         db.execute(
             sql,
             {
@@ -39,8 +39,17 @@ def create_ticket(ticket: TicketCreate, db: Session = Depends(get_db)):
                 "date_creation": ticket.date_creation,
             },
         )
+        print("execute")
         db.commit()
+        print("commit")
         return {"status": "ok"}
     except Exception as e:
         db.rollback()
         return {"status": "error", "detail": str(e)}   
+
+
+@router.get("/tickets")
+def get_tickets():
+    # Logique pour récupérer les tickets de maintenance
+    return {"message": "Tickets de maintenance"}
+
