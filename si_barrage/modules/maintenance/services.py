@@ -113,4 +113,5 @@ def analyse_recurrent_breakdowns(
         }
         for r in rows
     ]
-    return total, top, periode# Logique métier pour la maintenance
+    return total, top, periode
+# Logique métier pour la maintenance
