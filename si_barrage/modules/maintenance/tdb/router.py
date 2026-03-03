@@ -113,26 +113,33 @@ async def maintenance_dashboard_page():
       </style>
     </head>
     <body>
-
-    <h2>Vue globale</h2>
+      <h1>🛠️ Maintenance : Vue globale du parc</h1>
+                                  <!-- on récupère les donnees de la requete equipement-table puis on affche ds le tableau final -->
+    <h3>Répartition des équipements par statut</h3>
 
     <div id="kpis"
         hx-get="/maintenance/tdb/api/kpis"
         hx-trigger="load, every 10s"
         hx-swap="innerHTML">
     </div>
+<h3>Tableau récapitulatif des maintenances</h3>
+    <div id="filter"
+     hx-get="/maintenance/tdb/api/id-prefix-filter"
+     hx-trigger="load, every 10s"
+     hx-swap="innerHTML">
+</div>
 
-      <h1>🛠️ Maintenance : Vue globale du parc</h1>
-                                  <!-- on récupère les donnees de la requete equipement-table puis on affche ds le tableau final -->
-      <div class="card">
-        <h2>État des équipements (dernier événement)</h2>
-        <div id="equipment-table"
-             hx-get="/maintenance/tdb/api/equipment-table" 
-             hx-trigger="load, every 10s"
-             hx-swap="innerHTML">
-          <div class="loading">Chargement…</div>
-        </div>
-      </div>
+    <div id="equipment-table"
+        hx-get="/maintenance/tdb/api/equipment-table"
+        hx-trigger="load, every 10s"
+        hx-include="#prefix-select"
+        hx-swap="innerHTML">
+    <div class="loading">Chargement…</div>
+    </div>
+
+
+
+      
     </body>
     </html>
     """
@@ -140,8 +147,8 @@ async def maintenance_dashboard_page():
 
 #sert à créer les user stories mais n'est pas lié au TDB final
 @router.get("/api/equipment-table", response_class=HTMLResponse)
-async def equipment_table(db: Session = Depends(get_db)):
-    rows = services.get_equipment_last_events(db)
+async def equipment_table(prefix: str = "", db: Session = Depends(get_db)):
+    rows = services.get_equipment_last_events(db, prefix)
 
     trs = ""
     for r in rows:
@@ -199,6 +206,37 @@ async def kpis(db: Session = Depends(get_db)):
 
     </div>
 
+    """
+
+    return HTMLResponse(content=html)
+
+
+#endpoint pour le filtre pour le type d'équipement 
+@router.get("/api/id-prefix-filter", response_class=HTMLResponse)
+async def id_prefix_filter(db: Session = Depends(get_db)):
+
+    prefixes = services.get_id_prefixes(db)
+
+    options = '<option value="">Tous</option>'
+    for p in prefixes:
+        options += f'<option value="{p}">{p}</option>'
+
+    html = f"""
+    <div class="filter-bar">
+        <label>Filtre ID :</label>
+
+        <select id="prefix-select"
+                name="prefix"
+                hx-preserve="true"
+                hx-get="/maintenance/tdb/api/equipment-table"
+                hx-trigger="change"
+                hx-target="#equipment-table"
+                hx-include="#prefix-select">
+
+            {options}
+
+        </select>
+    </div>
     """
 
     return HTMLResponse(content=html)
