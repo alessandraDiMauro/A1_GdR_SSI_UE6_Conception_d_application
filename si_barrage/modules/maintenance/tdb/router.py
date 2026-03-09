@@ -210,6 +210,7 @@ async def equipment_table(
     </table>
     """
     return HTMLResponse(content=html)
+
 #partie kpis
 @router.get("/api/kpis", response_class=HTMLResponse)
 async def kpis(db: Session = Depends(get_db)):
