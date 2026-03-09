@@ -5,13 +5,23 @@ from typing import Any, Dict, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-def get_equipment_last_events(db, prefix: str = ""):
+from sqlalchemy import text
+
+def get_equipment_last_events(db, prefix: str = "", status: str = ""):
     params = {}
-    where = ""
+    conditions = []
 
     if prefix:
-        where = "WHERE UPPER(SUBSTR(m.id_equipement, 1, 1)) = :prefix"
+        conditions.append("UPPER(SUBSTR(m.id_equipement, 1, 1)) = :prefix")
         params["prefix"] = prefix.upper()
+
+    if status:
+        conditions.append("m.statut = :status")
+        params["status"] = status
+
+    where = ""
+    if conditions:
+        where = "WHERE " + " AND ".join(conditions)
 
     result = db.execute(text(f"""
       WITH last_by_eq AS (
