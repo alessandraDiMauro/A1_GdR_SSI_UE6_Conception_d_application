@@ -8,7 +8,7 @@ from sqlalchemy import text
 from fastapi.responses import HTMLResponse
 from fastapi import Form
 from fastapi.responses import RedirectResponse
-from tdb import services
+from . import services
 
 router = APIRouter()
 
