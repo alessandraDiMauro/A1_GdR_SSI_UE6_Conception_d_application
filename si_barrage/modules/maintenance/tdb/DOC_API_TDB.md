@@ -206,3 +206,22 @@ Page dashboard
                → tableau des maintenances
 
 Chaque endpoint fournit une partie du dashboard.
+
+
+ARCHITECTURE GLOBALE 
+
+main.py
+   │
+   ▼
+maintenance/router.py
+   │
+   ▼
+maintenance/tdb/router.py
+   │
+   ▼
+maintenance/tdb/services.py
+   │
+   ▼
+Base de données (SQLite)
+
+Dans le module maintenance, le code a été organisé en plusieurs fichiers afin de séparer les responsabilités et rendre l’application plus claire et plus facile à maintenir. Les fichiers router.py contiennent les routes de l’API, c’est-à-dire les URL accessibles par le client et les fonctions qui gèrent les requêtes HTTP (par exemple afficher le tableau de bord ou récupérer les données du tableau). Les fichiers services.py, eux, contiennent la logique métier, notamment les fonctions qui interrogent la base de données SQLite, appliquent les filtres et préparent les données avant de les envoyer au router. Cette séparation permet d’éviter de mélanger la gestion des requêtes web avec les opérations sur les données. De plus, un dossier tdb (tableau de bord) a été créé à l’intérieur du module maintenance afin d’isoler tout ce qui concerne le dashboard de maintenance. On y retrouve également un router.py et un services.py, mais uniquement dédiés aux fonctionnalités du tableau de bord (KPIs, filtres, tableau des maintenances). Cette organisation rend le projet plus modulaire, lisible et évolutif, car les fonctionnalités du dashboard sont regroupées dans un même espace sans alourdir les fichiers principaux du module maintenance.
