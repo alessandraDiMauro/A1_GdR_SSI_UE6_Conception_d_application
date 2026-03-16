@@ -5,8 +5,6 @@ from typing import Any, Dict, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from sqlalchemy import text
-
 def get_equipment_last_events(db, prefix: str = "", status: str = ""):
     params = {}
     conditions = []
