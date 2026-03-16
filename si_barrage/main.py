@@ -6,6 +6,8 @@ from .db import get_db
 from .modules.meteo import router as meteo_router
 from .modules.maintenance import router as maintenance_router
 from .modules.production import router as production_router
+from .modules.maintenance.ui_router import router as maintenance_ui_router
+
 
 
 app = FastAPI(
@@ -17,6 +19,9 @@ app = FastAPI(
 app.include_router(meteo_router.router, prefix="/meteo", tags=["Météo"])
 app.include_router(maintenance_router, prefix="/maintenance")
 app.include_router(production_router.router, prefix="/production", tags=["Production"])
+app.include_router(maintenance_ui_router)
+
+
 
 @app.get("/", tags=["Root"])
 def read_root():
