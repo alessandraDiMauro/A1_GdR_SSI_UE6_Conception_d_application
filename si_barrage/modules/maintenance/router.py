@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -159,7 +159,7 @@ async def nouveau_ticket_page():
     </html>
     """
     return HTMLResponse(content=html)
-=======
+
 # Mon debut
 
 from typing import List, Optional
@@ -288,4 +288,4 @@ def analyse_interventions(
         "top_problemes": top,
         "periode": periode,
     }
->>>>>>> origin/interventions-history
+
