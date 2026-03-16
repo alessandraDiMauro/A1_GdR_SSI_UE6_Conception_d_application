@@ -1,11 +1,16 @@
+from typing import List, Optional
+from datetime import date
 
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Path
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from si_barrage.db import get_db
 from .tdb.router import router as tdb_router
+from . import services
+from .schemas import InterventionCreate, InterventionRead, AnalyseRead
+from .models import MaintenanceTicket
 
 router = APIRouter()
 
@@ -28,8 +33,8 @@ async def create_ticket(
         my_description = f"{description}, technicien: {nom}, niv_urgence: {niv_urgence}"
 
         sql = text("""
-            INSERT INTO maintenance 
-            (id_equipement, nom_equipement, statut, description, date_creation) 
+            INSERT INTO maintenance
+            (id_equipement, nom_equipement, statut, description, date_creation)
             VALUES (:id_equipement, :nom_equipement, :statut, :description, :date_creation)
         """)
 
@@ -63,37 +68,37 @@ async def nouveau_ticket_page():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Nouveau ticket — Maintenance</title>
         <style>
-            body { 
-                font-family: system-ui; 
-                max-width: 600px; 
-                margin: 40px auto; 
+            body {
+                font-family: system-ui;
+                max-width: 600px;
+                margin: 40px auto;
                 padding: 20px;
             }
             .form-group { margin-bottom: 20px; }
             label { display: block; margin-bottom: 5px; font-weight: 500; }
-            input, select, textarea { 
-                width: 100%; 
-                padding: 12px; 
-                border: 1px solid #ddd; 
-                border-radius: 6px; 
+            input, select, textarea {
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
                 font-size: 16px;
                 box-sizing: border-box;
             }
-            .btn { 
-                background: #28a745; 
-                color: white; 
-                padding: 14px 28px; 
-                border: none; 
-                border-radius: 6px; 
-                font-size: 16px; 
+            .btn {
+                background: #28a745;
+                color: white;
+                padding: 14px 28px;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
                 cursor: pointer;
                 width: 100%;
             }
             .btn:hover { background: #218838; }
-            .back-link { 
-                display: inline-block; 
-                margin-bottom: 30px; 
-                color: #007bff; 
+            .back-link {
+                display: inline-block;
+                margin-bottom: 30px;
+                color: #007bff;
                 text-decoration: none;
             }
             .back-link:hover { text-decoration: underline; }
@@ -102,25 +107,25 @@ async def nouveau_ticket_page():
     </head>
     <body>
         <a href="/maintenance/tdb/" class="back-link">← Retour au tableau de bord</a>
-        
+
         <h1>➕ Nouveau ticket de maintenance</h1>
-        
+
         <form action="/maintenance/tickets" method="POST">
             <div class="form-group">
                 <label for="nom">Technicien :</label>
                 <input type="text" id="nom" name="nom" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="id_equipement">ID Équipement :</label>
                 <input type="text" id="id_equipement" name="id_equipement" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="nom_equipement">Nom Équipement :</label>
                 <input type="text" id="nom_equipement" name="nom_equipement" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="statut">Statut :</label>
                 <select id="statut" name="statut" required>
@@ -130,7 +135,7 @@ async def nouveau_ticket_page():
                     <option value="Terminé">Terminé</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label for="niv_urgence">Niveau d'urgence :</label>
                 <select id="niv_urgence" name="niv_urgence" required>
@@ -141,18 +146,18 @@ async def nouveau_ticket_page():
                     <option value="critique">Critique</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label for="description">Description du problème :</label>
-                <textarea id="description" name="description" rows="4" required 
+                <textarea id="description" name="description" rows="4" required
                           placeholder="Décrivez précisément le problème rencontré..."></textarea>
             </div>
-            
+
             <div class="form-group">
                 <label>Date de création :</label>
                 <input type="date" id="date_creation" name="date_creation" required>
             </div>
-            
+
             <button type="submit" class="btn">Créer le ticket</button>
         </form>
     </body>
@@ -160,22 +165,7 @@ async def nouveau_ticket_page():
     """
     return HTMLResponse(content=html)
 
-# Mon debut
 
-from typing import List, Optional
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Path
-from sqlalchemy.orm import Session
-from datetime import date
-
-from si_barrage.db import get_db
-from . import services
-from .schemas import InterventionCreate, InterventionRead, AnalyseRead
-from .models import MaintenanceTicket
-
-router = APIRouter()
-
-# BONUS: liste des tickets existants (pratique, et garde /tickets utile)
 @router.get("/tickets")
 def list_tickets(db: Session = Depends(get_db)):
     tickets = db.query(MaintenanceTicket).order_by(MaintenanceTicket.id.desc()).all()
@@ -239,7 +229,6 @@ def create_intervention(
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(status_code=404, detail=f"Équipement inconnu: {id_equipement}")
 
-    # Validation: ticket_id doit exister si fourni + correspondre au bon équipement
     if payload.ticket_id is not None:
         ticket = db.query(MaintenanceTicket).filter(MaintenanceTicket.id == payload.ticket_id).first()
         if not ticket:
@@ -266,7 +255,6 @@ def analyse_interventions(
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(status_code=404, detail=f"Équipement inconnu: {id_equipement}")
 
-    # Valide dates si fournies
     for label, value in [("start_date", start_date), ("end_date", end_date)]:
         if value is not None:
             try:
@@ -288,4 +276,3 @@ def analyse_interventions(
         "top_problemes": top,
         "periode": periode,
     }
-
