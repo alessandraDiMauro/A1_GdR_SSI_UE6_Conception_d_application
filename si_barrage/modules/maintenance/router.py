@@ -1,17 +1,22 @@
 # Mon debut
 
+from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
-from datetime import date
 
 from si_barrage.db import get_db
+
 from . import services
-from .schemas import InterventionCreate, InterventionRead, AnalyseRead
 from .models import MaintenanceTicket
+from .schemas import AnalyseRead, InterventionCreate, InterventionRead
+from .ui_router import router as ui_router
 
 router = APIRouter()
+
+router.include_router(ui_router, prefix="", tags=["UI Maintenance"])
+
 
 # BONUS: liste des tickets existants (pratique, et garde /tickets utile)
 @router.get("/tickets")
@@ -42,9 +47,13 @@ def get_interventions(
     db: Session = Depends(get_db),
 ):
     if not services.equipment_exists(db, id_equipement):
-        raise HTTPException(status_code=404, detail=f"Équipement inconnu: {id_equipement}")
+        raise HTTPException(
+            status_code=404, detail=f"Équipement inconnu: {id_equipement}"
+        )
 
-    interventions = services.get_interventions(db, id_equipement, limit=limit, offset=offset)
+    interventions = services.get_interventions(
+        db, id_equipement, limit=limit, offset=offset
+    )
     return interventions
 
 
@@ -59,7 +68,9 @@ def get_intervention_detail(
 ):
     intervention = services.get_intervention_by_id(db, intervention_id)
     if not intervention:
-        raise HTTPException(status_code=404, detail=f"Intervention introuvable: {intervention_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Intervention introuvable: {intervention_id}"
+        )
     return intervention
 
 
@@ -75,15 +86,26 @@ def create_intervention(
     db: Session = Depends(get_db),
 ):
     if not services.equipment_exists(db, id_equipement):
-        raise HTTPException(status_code=404, detail=f"Équipement inconnu: {id_equipement}")
+        raise HTTPException(
+            status_code=404, detail=f"Équipement inconnu: {id_equipement}"
+        )
 
     # Validation: ticket_id doit exister si fourni + correspondre au bon équipement
     if payload.ticket_id is not None:
-        ticket = db.query(MaintenanceTicket).filter(MaintenanceTicket.id == payload.ticket_id).first()
+        ticket = (
+            db.query(MaintenanceTicket)
+            .filter(MaintenanceTicket.id == payload.ticket_id)
+            .first()
+        )
         if not ticket:
-            raise HTTPException(status_code=404, detail=f"Ticket introuvable: {payload.ticket_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Ticket introuvable: {payload.ticket_id}"
+            )
         if ticket.id_equipement != id_equipement:
-            raise HTTPException(status_code=400, detail="ticket_id ne correspond pas à l'équipement demandé")
+            raise HTTPException(
+                status_code=400,
+                detail="ticket_id ne correspond pas à l'équipement demandé",
+            )
 
     created = services.create_intervention(db, id_equipement, payload)
     return created
@@ -97,12 +119,18 @@ def create_intervention(
 def analyse_interventions(
     id_equipement: str = Path(..., examples=["T1"]),
     top_n: int = Query(5, ge=1, le=50),
-    start_date: Optional[str] = Query(None, description="Filtre date ISO YYYY-MM-DD (inclusive)"),
-    end_date: Optional[str] = Query(None, description="Filtre date ISO YYYY-MM-DD (inclusive)"),
+    start_date: Optional[str] = Query(
+        None, description="Filtre date ISO YYYY-MM-DD (inclusive)"
+    ),
+    end_date: Optional[str] = Query(
+        None, description="Filtre date ISO YYYY-MM-DD (inclusive)"
+    ),
     db: Session = Depends(get_db),
 ):
     if not services.equipment_exists(db, id_equipement):
-        raise HTTPException(status_code=404, detail=f"Équipement inconnu: {id_equipement}")
+        raise HTTPException(
+            status_code=404, detail=f"Équipement inconnu: {id_equipement}"
+        )
 
     # Valide dates si fournies
     for label, value in [("start_date", start_date), ("end_date", end_date)]:
@@ -110,7 +138,10 @@ def analyse_interventions(
             try:
                 date.fromisoformat(value)
             except Exception:
-                raise HTTPException(status_code=422, detail=f"{label} doit être au format ISO YYYY-MM-DD")
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"{label} doit être au format ISO YYYY-MM-DD",
+                )
 
     total, top, periode = services.analyse_recurrent_breakdowns(
         db,

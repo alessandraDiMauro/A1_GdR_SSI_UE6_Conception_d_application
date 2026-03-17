@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import Optional
 from datetime import date
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from si_barrage.db import get_db
+
 from . import services
 from .models import Intervention  # <-- IMPORTANT: on lit les IDs depuis interventions
-
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ def _html_escape(s: str) -> str:
     )
 
 
-@router.get("/maintenance/equipements/interventions", response_class=HTMLResponse)
+@router.get("/interventions", response_class=HTMLResponse)
 def page_interventions(db: Session = Depends(get_db)):
     # ✅ Liste des équipements depuis interventions (T1 / V3 / S2)
     rows = (
@@ -37,7 +37,10 @@ def page_interventions(db: Session = Depends(get_db)):
     equipements = [r[0] for r in rows if r and r[0]]
 
     options = "\n".join(
-        [f'<option value="{_html_escape(e)}">{_html_escape(e)}</option>' for e in equipements]
+        [
+            f'<option value="{_html_escape(e)}">{_html_escape(e)}</option>'
+            for e in equipements
+        ]
     )
 
     html = f"""
@@ -220,7 +223,7 @@ async function loadList(resetOffset) {{
   document.getElementById('analyse').innerHTML = `<span class="text-base-content/60">Lance une analyse (Top N + dates optionnelles).</span>`;
 
   const limit = getLimit();
-  const url = `/home/maintenance/equipements/${{encodeURIComponent(eq)}}/interventions/list?limit=${{limit}}&offset=${{offset}}`;
+  const url = `/maintenance/equipements/${{encodeURIComponent(eq)}}/interventions/list?limit=${{limit}}&offset=${{offset}}`;
 
   document.getElementById('list').innerHTML = `
     <div class="flex items-center gap-3">
@@ -249,7 +252,7 @@ function prevPage() {{
 }}
 
 async function loadDetail(id) {{
-  const res = await fetch(`/home/maintenance/interventions/${{id}}/detail`);
+  const res = await fetch(`/maintenance/interventions/${{id}}/detail`);
   document.getElementById('detail').innerHTML = await res.text();
 }}
 
@@ -276,7 +279,7 @@ async function loadAnalyse() {{
     </div>
   `;
 
-  const res = await fetch(`/home/maintenance/equipements/${{encodeURIComponent(eq)}}/interventions/analyse?` + qs.toString());
+  const res = await fetch(`/maintenance/equipements/${{encodeURIComponent(eq)}}/interventions/analyse?` + qs.toString());
   document.getElementById('analyse').innerHTML = await res.text();
 
   if (!res.ok) {{
@@ -291,7 +294,10 @@ async function loadAnalyse() {{
     return html
 
 
-@router.get("/maintenance/equipements/{id_equipement}/interventions/list", response_class=HTMLResponse)
+@router.get(
+    "/equipements/{id_equipement}/interventions/list",
+    response_class=HTMLResponse,
+)
 def page_interventions_list(
     id_equipement: str,
     limit: int = Query(20, ge=1, le=200),
@@ -340,7 +346,7 @@ def page_interventions_list(
       </tr>
     </thead>
     <tbody>
-      {''.join(trs)}
+      {"".join(trs)}
     </tbody>
   </table>
 </div>
@@ -350,7 +356,7 @@ def page_interventions_list(
 """
 
 
-@router.get("/maintenance/interventions/{intervention_id}/detail", response_class=HTMLResponse)
+@router.get("/interventions/{intervention_id}/detail", response_class=HTMLResponse)
 def page_intervention_detail(intervention_id: int, db: Session = Depends(get_db)):
     it = services.get_intervention_by_id(db, intervention_id)
     if not it:
@@ -389,7 +395,10 @@ def page_intervention_detail(intervention_id: int, db: Session = Depends(get_db)
 """
 
 
-@router.get("/maintenance/equipements/{id_equipement}/interventions/analyse", response_class=HTMLResponse)
+@router.get(
+    "/equipements/{id_equipement}/interventions/analyse",
+    response_class=HTMLResponse,
+)
 def page_interventions_analyse(
     id_equipement: str,
     top_n: int = Query(5, ge=1, le=50),
@@ -435,9 +444,9 @@ def page_interventions_analyse(
         [
             f"""
 <li class="py-2">
-  <div class="font-semibold">{_html_escape(t['probleme'])}</div>
+  <div class="font-semibold">{_html_escape(t["probleme"])}</div>
   <div class="text-sm text-base-content/70">
-    {t['occurrences']} occurrence(s) • {t['premiere_date']} → {t['derniere_date']}
+    {t["occurrences"]} occurrence(s) • {t["premiere_date"]} → {t["derniere_date"]}
   </div>
 </li>
 """

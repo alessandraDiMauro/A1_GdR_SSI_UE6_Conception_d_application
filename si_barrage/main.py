@@ -1,12 +1,11 @@
 # Point d'entrée de l'application FastAPI principale
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
+from fastapi import Depends, FastAPI
 from sqlalchemy import text
-
+from sqlalchemy.orm import Session
 
 from .db import get_db
-from .modules.meteo import router as meteo_router
 from .modules.maintenance import router as maintenance_router
+from .modules.meteo import router as meteo_router
 from .modules.production import router as production_router
 
 app = FastAPI(
@@ -16,18 +15,15 @@ app = FastAPI(
 )
 
 app.include_router(meteo_router.router, prefix="/meteo", tags=["Météo"])
-app.include_router(maintenance_router.router, prefix="/maintenance", tags=["Maintenance"])
+app.include_router(
+    maintenance_router.router, prefix="/maintenance", tags=["Maintenance"]
+)
 app.include_router(production_router.router, prefix="/production", tags=["Production"])
-
-from .modules.maintenance import ui_router as maintenance_pages
-app.include_router(maintenance_pages.router, prefix="/home", tags=["UI Maintenance"])
 
 
 @app.get("/", tags=["Root"])
 def read_root():
     return {"message": "Bienvenue sur l'API du SI Barrage"}
-
-
 
 
 @app.get("/db", tags=["Database"])
