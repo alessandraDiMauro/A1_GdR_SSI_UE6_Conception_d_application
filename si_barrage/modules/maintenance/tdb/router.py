@@ -123,6 +123,10 @@ async def maintenance_dashboard_page():
            style="background: #007bff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
            ➕ Créer un nouveau ticket
         </a>
+          <a href="/maintenance/interventions"
+     style="background:#6f42c1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+     🛠️ Voir l'historique des interventions
+  </a>
       </div>
     </body>
     </html>

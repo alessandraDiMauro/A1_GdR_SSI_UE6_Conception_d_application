@@ -4,9 +4,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .modules.maintenance import router as maintenance_router
 from .modules.meteo import router as meteo_router
 from .modules.production import router as production_router
+
+from si_barrage.modules.maintenance.router import router as maintenance_router
+from si_barrage.modules.maintenance.ui_router import router as maintenance_ui_router
+
 
 app = FastAPI(
     title="SI Barrage",
@@ -15,9 +18,8 @@ app = FastAPI(
 )
 
 app.include_router(meteo_router.router, prefix="/meteo", tags=["Météo"])
-app.include_router(
-    maintenance_router, prefix="/maintenance", tags=["Maintenance"]
-)
+app.include_router(maintenance_router, prefix="/maintenance", tags=["Maintenance"])
+app.include_router(maintenance_ui_router, prefix="/maintenance", tags=["Maintenance UI"])
 app.include_router(production_router.router, prefix="/production", tags=["Production"])
 
 
@@ -32,7 +34,6 @@ def check_db_connection(db: Session = Depends(get_db)):
     Checks the database connection and lists all tables.
     """
     try:
-        # Execute a simple query to check the connection
         result = db.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
         tables = [row[0] for row in result]
         return {"status": "ok", "tables": tables}
