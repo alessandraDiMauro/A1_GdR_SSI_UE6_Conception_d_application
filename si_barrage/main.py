@@ -16,7 +16,7 @@ app = FastAPI(
 
 app.include_router(meteo_router.router, prefix="/meteo", tags=["Météo"])
 app.include_router(
-    maintenance_router.router, prefix="/maintenance", tags=["Maintenance"]
+    maintenance_router, prefix="/maintenance", tags=["Maintenance"]
 )
 app.include_router(production_router.router, prefix="/production", tags=["Production"])
 
