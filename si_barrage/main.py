@@ -1,12 +1,12 @@
 # Point d'entrée de l'application FastAPI principale
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
+from fastapi import Depends, FastAPI
 from sqlalchemy import text
-from .db import get_db
-from .modules.meteo import router as meteo_router
-from .modules.maintenance import router as maintenance_router
-from .modules.production import router as production_router
+from sqlalchemy.orm import Session
 
+from .db import get_db
+from .modules.maintenance import router as maintenance_router
+from .modules.meteo import router as meteo_router
+from .modules.production import router as production_router
 
 app = FastAPI(
     title="SI Barrage",
@@ -15,8 +15,11 @@ app = FastAPI(
 )
 
 app.include_router(meteo_router.router, prefix="/meteo", tags=["Météo"])
-app.include_router(maintenance_router, prefix="/maintenance")
+app.include_router(
+    maintenance_router.router, prefix="/maintenance", tags=["Maintenance"]
+)
 app.include_router(production_router.router, prefix="/production", tags=["Production"])
+
 
 @app.get("/", tags=["Root"])
 def read_root():
@@ -35,6 +38,3 @@ def check_db_connection(db: Session = Depends(get_db)):
         return {"status": "ok", "tables": tables}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
-    
-
-
