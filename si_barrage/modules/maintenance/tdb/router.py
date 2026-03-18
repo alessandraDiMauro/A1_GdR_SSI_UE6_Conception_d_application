@@ -19,76 +19,76 @@ async def maintenance_dashboard_page():
       <title>Maintenance — Vue globale</title>
       <script src="https://unpkg.com/htmx.org@1.9.10"></script>
       <style>
-        body{
-            font-family:system-ui;
-            padding:20px;
-            max-width:1100px;
-            margin:0 auto;
+        body {
+            font-family: system-ui;
+            padding: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
         }
 
-        h1{ margin-bottom:20px; }
+        h1 { margin-bottom: 20px; }
 
-        .kpi-grid{
-            display:flex;
-            gap:20px;
-            margin-bottom:25px;
+        .kpi-grid {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 25px;
         }
 
-        .kpi-card{
-            flex:1;
-            background:white;
-            border-radius:12px;
-            padding:20px;
-            text-align:center;
-            box-shadow:0 2px 6px rgba(0,0,0,0.09);
-            border:1px solid #ddd;
+        .kpi-card {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.09);
+            border: 1px solid #ddd;
         }
 
-        .kpi-number{
-            font-size:36px;
-            font-weight:bold;
+        .kpi-number {
+            font-size: 36px;
+            font-weight: bold;
         }
 
-        .kpi-label{
-            color:#666;
-            margin-top:5px;
+        .kpi-label {
+            color: #666;
+            margin-top: 5px;
         }
 
-        .card{
-            border:1px solid #ddd;
-            border-radius:12px;
-            padding:16px;
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 16px;
         }
 
-        .loading{
-            color:#666;
-            padding:12px;
+        .loading {
+            color: #666;
+            padding: 12px;
         }
 
-        table{
-            width:100%;
-            border-collapse:collapse;
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
 
-        th,td{
-            padding:10px;
-            border-bottom:1px solid #eee;
-            text-align:left;
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
         }
 
-        .kpi-termine{ border:2px solid green; }
-        .kpi-encours{ border:2px solid orange; }
-        .kpi-attente{ border:2px solid lightcoral; }
+        .kpi-termine { border: 2px solid green; }
+        .kpi-encours { border: 2px solid orange; }
+        .kpi-attente { border: 2px solid lightcoral; }
 
-        .status-termine td{ background-color: #d4edda; }
-        .status-encours td{ background-color: #ffd8a8; }
-        .status-attente td{ background-color: #f8d7da; }
+        .status-termine td { background-color: #d4edda; }
+        .status-encours td { background-color: #ffd8a8; }
+        .status-attente td { background-color: #f8d7da; }
 
-        .filter-bar{
-            display:flex;
-            gap:16px;
-            margin:20px 0;
-            align-items:center;
+        .filter-bar {
+            display: flex;
+            gap: 16px;
+            margin: 20px 0;
+            align-items: center;
         }
       </style>
     </head>
@@ -118,15 +118,16 @@ async def maintenance_dashboard_page():
         <div class="loading">Chargement…</div>
       </div>
 
-      <div style="margin: 20px 0;">
+      <div style="margin: 20px 0; display:flex; gap:12px; flex-wrap:wrap;">
         <a href="/maintenance/nouveau-ticket"
-           style="background: #007bff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+           style="background:#007bff;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
            ➕ Créer un nouveau ticket
         </a>
-          <a href="/maintenance/interventions"
-     style="background:#6f42c1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-     🛠️ Voir l'historique des interventions
-  </a>
+
+        <a href="/maintenance/interventions"
+           style="background:#6f42c1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+           🛠️ Voir l'historique des interventions
+        </a>
       </div>
     </body>
     </html>
@@ -138,6 +139,7 @@ async def maintenance_dashboard_page():
 async def equipment_table(
     prefix: str = "", status: str = "", db: Session = Depends(get_db)
 ):
+    #rows = services.get_equipment_last_events(db, prefix, status)
     rows = services.get_equipment_events(db, prefix, status)
 
     trs = ""

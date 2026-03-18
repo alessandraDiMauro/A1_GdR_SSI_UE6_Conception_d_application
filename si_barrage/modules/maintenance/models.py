@@ -1,59 +1,40 @@
-from sqlalchemy import Column, Float, ForeignKey, Index, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Float, Integer, String
 
 from si_barrage.db import Base
 
 
 class MaintenanceTicket(Base):
     """
-    Mapping ORM de la table existante `maintenance`.
-    On considère chaque ligne comme un ticket.
-    """
+    Modèle unique de la table `maintenance`.
 
-    __tablename__ = "maintenance"
+    Cette table centralise :
+    - les tickets de maintenance
+    - les informations d'intervention / historique
+    - les champs utiles au tableau de bord
 
-    id = Column(Integer, primary_key=True, index=True)
-    id_equipement = Column(String, nullable=False, index=True)
-    nom_equipement = Column(String)
-    statut = Column(String)
-    description = Column(String)
-    date_creation = Column(String)  # ISO: YYYY-MM-DD
-
-
-class Intervention(Base):
-    """
-    Historique d'interventions (feature 3).
-    Lié à un équipement via `id_equipement` (obligatoire)
-    et optionnellement à un ticket via `ticket_id`.
+    On ne garde plus de modèle `Intervention` séparé.
     """
 
     __tablename__ = "maintenance"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # Identifiant logique de l'équipement (ex: T1, V3, S2...)
+    # Identification équipement
     id_equipement = Column(String, nullable=False, index=True)
+    nom_equipement = Column(String, nullable=True)
 
-    # Ticket de maintenance source (optionnel)
-    ticket_id = Column(Integer, ForeignKey("maintenance.id"), nullable=True, index=True)
+    # Ticket / suivi
+    statut = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    date_creation = Column(String, nullable=True)  # ISO: YYYY-MM-DD
 
-    # Champs minimum requis par US 3.2
-    date_intervention = Column(String, nullable=False, index=True)  # ISO: YYYY-MM-DD
-    intervenant = Column(String, nullable=False)
-    probleme = Column(String, nullable=False, index=True)
-    solution = Column(String, nullable=False)
+    # Champs enrichis pour la feature historique / intervention
+    ticket_id = Column(Integer, nullable=True, index=True)
+    date_intervention = Column(String, nullable=True, index=True)  # ISO: YYYY-MM-DD
+    intervenant = Column(String, nullable=True)
+    solution = Column(String, nullable=True)
 
-    # Champs optionnels (simples, non bloquants)
-    statut = Column(String, nullable=True)  # ex: "Terminé"
+    # Champs complémentaires
     duree_minutes = Column(Integer, nullable=True)
     cout = Column(Float, nullable=True)
     pieces_changees = Column(String, nullable=True)
-
-    ticket = relationship("MaintenanceTicket", backref="interventions")
-
-    __table_args__ = (
-        # Accélère: /equipements/{id}/interventions tri date
-        Index("ix_interventions_equip_date", "id_equipement", "date_intervention"),
-        # Accélère l'analyse de pannes récurrentes
-        Index("ix_interventions_equip_prob", "id_equipement", "probleme"),
-    )

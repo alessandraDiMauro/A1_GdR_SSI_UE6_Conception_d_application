@@ -1,20 +1,58 @@
-
-from typing import Optional, List
-from pydantic import BaseModel, Field, field_validator
 from datetime import date
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class InterventionBase(BaseModel):
-    date_intervention: str = Field(..., examples=["2024-01-02"], description="Date ISO YYYY-MM-DD")
-    intervenant: str = Field(..., min_length=1, examples=["M. Kabila"])
-    probleme: str = Field(..., min_length=1, examples=["Vibration anormale"])
-    solution: str = Field(..., min_length=1, examples=["Roulements changés"])
+    """
+    Schéma logique utilisé par l'API pour représenter une intervention,
+    même si les données sont désormais stockées dans la table `maintenance`.
+    """
 
-    ticket_id: Optional[int] = Field(None, description="Lien optionnel vers la table maintenance.id")
-    statut: Optional[str] = Field(None, examples=["Terminé"])
-    duree_minutes: Optional[int] = Field(None, ge=0, examples=[90])
-    cout: Optional[float] = Field(None, ge=0, examples=[150.0])
-    pieces_changees: Optional[str] = Field(None, examples=["Roulements, joint"])
+    date_intervention: str = Field(
+        ...,
+        examples=["2024-01-02"],
+        description="Date ISO YYYY-MM-DD",
+    )
+    intervenant: str = Field(
+        ...,
+        min_length=1,
+        examples=["M. Kabila"],
+    )
+    probleme: str = Field(
+        ...,
+        min_length=1,
+        examples=["Vibration anormale"],
+    )
+    solution: str = Field(
+        ...,
+        min_length=1,
+        examples=["Roulements changés"],
+    )
+
+    ticket_id: Optional[int] = Field(
+        None,
+        description="Lien optionnel vers maintenance.id",
+    )
+    statut: Optional[str] = Field(
+        None,
+        examples=["Terminé"],
+    )
+    duree_minutes: Optional[int] = Field(
+        None,
+        ge=0,
+        examples=[90],
+    )
+    cout: Optional[float] = Field(
+        None,
+        ge=0,
+        examples=[150.0],
+    )
+    pieces_changees: Optional[str] = Field(
+        None,
+        examples=["Roulements, joint"],
+    )
 
     @field_validator("date_intervention")
     @classmethod
@@ -22,7 +60,9 @@ class InterventionBase(BaseModel):
         try:
             date.fromisoformat(v)
         except Exception:
-            raise ValueError("date_intervention doit être au format ISO YYYY-MM-DD (ex: 2024-01-02)")
+            raise ValueError(
+                "date_intervention doit être au format ISO YYYY-MM-DD (ex: 2024-01-02)"
+            )
         return v
 
     @field_validator("intervenant", "probleme", "solution")
@@ -34,6 +74,10 @@ class InterventionBase(BaseModel):
 
 
 class InterventionCreate(InterventionBase):
+    """
+    Payload de création logique d'une intervention.
+    Les données seront stockées dans la table `maintenance`.
+    """
     pass
 
 
@@ -57,10 +101,18 @@ class InterventionUpdate(BaseModel):
         try:
             date.fromisoformat(v)
         except Exception:
-            raise ValueError("date_intervention doit être au format ISO YYYY-MM-DD (ex: 2024-01-02)")
+            raise ValueError(
+                "date_intervention doit être au format ISO YYYY-MM-DD (ex: 2024-01-02)"
+            )
         return v
 
-    @field_validator("intervenant", "probleme", "solution", "statut", "pieces_changees")
+    @field_validator(
+        "intervenant",
+        "probleme",
+        "solution",
+        "statut",
+        "pieces_changees",
+    )
     @classmethod
     def strip_if_present(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
@@ -74,7 +126,7 @@ class InterventionRead(InterventionBase):
     id_equipement: str
 
     class Config:
-        from_attributes = True  # pydantic v2
+        from_attributes = True
 
 
 class ProblemStat(BaseModel):

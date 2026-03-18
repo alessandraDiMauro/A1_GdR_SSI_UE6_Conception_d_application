@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from si_barrage.db import get_db
 
 from . import services
-from .models import Intervention  # <-- IMPORTANT: on lit les IDs depuis interventions
+from .models import MaintenanceTicket
 
 router = APIRouter()
 
@@ -27,11 +27,17 @@ def _html_escape(s: str) -> str:
 
 @router.get("/interventions", response_class=HTMLResponse)
 def page_interventions(db: Session = Depends(get_db)):
-    # ✅ Liste des équipements depuis interventions (T1 / V3 / S2)
+    """
+    Page principale de la Feature 3.
+
+    On lit maintenant les équipements depuis la table `maintenance`
+    via le modèle `MaintenanceTicket`, conformément à la consigne du prof.
+    """
     rows = (
-        db.query(Intervention.id_equipement)
+        db.query(MaintenanceTicket.id_equipement)
+        .filter(MaintenanceTicket.id_equipement.isnot(None))
         .distinct()
-        .order_by(Intervention.id_equipement)
+        .order_by(MaintenanceTicket.id_equipement)
         .all()
     )
     equipements = [r[0] for r in rows if r and r[0]]
@@ -51,7 +57,6 @@ def page_interventions(db: Session = Depends(get_db)):
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Maintenance • Historique des interventions</title>
 
-  <!-- Tailwind + DaisyUI (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
 </head>
@@ -59,18 +64,15 @@ def page_interventions(db: Session = Depends(get_db)):
 <body class="bg-base-200 min-h-screen">
   <div class="max-w-7xl mx-auto p-6">
 
-    <!-- Header -->
     <div class="flex flex-col gap-2 mb-6">
       <div class="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 class="text-3xl font-bold">Maintenance</h1>
           <p class="text-base-content/70">Historique & analyse des interventions par équipement</p>
         </div>
-       
       </div>
     </div>
 
-    <!-- Controls -->
     <div class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body gap-5">
 
@@ -131,10 +133,8 @@ def page_interventions(db: Session = Depends(get_db)):
       </div>
     </div>
 
-    <!-- Dashboard grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <!-- Historique -->
       <div class="card bg-base-100 shadow-xl lg:col-span-2">
         <div class="card-body">
           <div class="flex items-center justify-between flex-wrap gap-2">
@@ -155,7 +155,6 @@ def page_interventions(db: Session = Depends(get_db)):
         </div>
       </div>
 
-      <!-- Détail + Analyse -->
       <div class="flex flex-col gap-6">
 
         <div class="card bg-base-100 shadow-xl">
@@ -321,12 +320,15 @@ def page_interventions_list(
 
     trs = []
     for it in rows:
+        problem = it.description or ""
+        date_value = it.date_intervention or it.date_creation or ""
+
         trs.append(f"""
 <tr class="hover">
   <td class="font-mono">{it.id}</td>
-  <td>{it.date_intervention}</td>
+  <td>{_html_escape(str(date_value))}</td>
   <td>{_html_escape(it.intervenant or "")}</td>
-  <td>{_html_escape(it.probleme or "")}</td>
+  <td>{_html_escape(problem)}</td>
   <td class="text-right">
     <button class="btn btn-xs btn-outline" onclick="loadDetail({it.id})">Voir</button>
   </td>
@@ -369,16 +371,19 @@ def page_intervention_detail(intervention_id: int, db: Session = Depends(get_db)
     def v(x):
         return "" if x is None else _html_escape(str(x))
 
+    problem = it.description
+    date_value = it.date_intervention or it.date_creation
+
     return f"""
 <div class="grid grid-cols-1 gap-2 text-sm">
   <div class="flex justify-between"><span class="text-base-content/60">ID</span><span class="font-mono">{v(it.id)}</span></div>
   <div class="flex justify-between"><span class="text-base-content/60">Équipement</span><span class="font-mono">{v(it.id_equipement)}</span></div>
-  <div class="flex justify-between"><span class="text-base-content/60">Date</span><span>{v(it.date_intervention)}</span></div>
+  <div class="flex justify-between"><span class="text-base-content/60">Date</span><span>{v(date_value)}</span></div>
   <div class="flex justify-between"><span class="text-base-content/60">Intervenant</span><span>{v(it.intervenant)}</span></div>
 
   <div class="divider my-1"></div>
 
-  <div><span class="text-base-content/60">Problème</span><div class="font-semibold">{v(it.probleme)}</div></div>
+  <div><span class="text-base-content/60">Problème</span><div class="font-semibold">{v(problem)}</div></div>
   <div><span class="text-base-content/60">Solution</span><div>{v(it.solution)}</div></div>
 
   <div class="divider my-1"></div>
@@ -413,7 +418,6 @@ def page_interventions_analyse(
 </div>
 """
 
-    # Validation dates
     for label, value in [("start_date", start_date), ("end_date", end_date)]:
         if value is not None:
             try:
@@ -454,7 +458,10 @@ def page_interventions_analyse(
         ]
     )
 
-    periode_txt = _html_escape(periode) if periode else "toutes dates"
+    if periode:
+        periode_txt = _html_escape(str(periode))
+    else:
+        periode_txt = "toutes dates"
 
     return f"""
 <div class="flex flex-wrap gap-2 mb-3">

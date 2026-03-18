@@ -17,6 +17,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Modules métier
 app.include_router(meteo_router.router, prefix="/meteo", tags=["Météo"])
 app.include_router(maintenance_router, prefix="/maintenance", tags=["Maintenance"])
 app.include_router(maintenance_ui_router, prefix="/maintenance", tags=["Maintenance UI"])
@@ -31,7 +32,7 @@ def read_root():
 @app.get("/db", tags=["Database"])
 def check_db_connection(db: Session = Depends(get_db)):
     """
-    Checks the database connection and lists all tables.
+    Vérifie la connexion à la base et liste les tables présentes.
     """
     try:
         result = db.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))

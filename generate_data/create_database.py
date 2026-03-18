@@ -31,13 +31,17 @@ def create_database():
     """)
 
     # --- Create maintenance table ---
+    # Table centrale du projet :
+    # - tickets de maintenance
+    # - état des équipements (TDB)
+    # - historique / détails / analyse des interventions
     cursor.execute("""
     CREATE TABLE maintenance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         id_equipement TEXT NOT NULL,
         nom_equipement TEXT,
-        statut TEXT,
         description TEXT,
+        statut TEXT,
         date_creation TEXT,
         ticket_id INTEGER,
         date_intervention TEXT,
@@ -90,14 +94,9 @@ def populate_table(table_name, csv_file):
         reader = csv.reader(f)
         header = next(reader)  # Skip header row
 
-        # Prepare the insert statement
-        # The number of placeholders must match the number of columns in the CSV
         placeholders = ", ".join(["?"] * len(header))
-        query = (
-            f"INSERT INTO {table_name} ({', '.join(header)}) VALUES ({placeholders})"
-        )
+        query = f"INSERT INTO {table_name} ({', '.join(header)}) VALUES ({placeholders})"
 
-        # Read data and insert into the table
         count = 0
         for row in reader:
             # Ignore blank lines frequently present at end of CSV files.
