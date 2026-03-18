@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Index
+from sqlalchemy import Column, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from si_barrage.db import Base
@@ -9,6 +9,7 @@ class MaintenanceTicket(Base):
     Mapping ORM de la table existante `maintenance`.
     On considère chaque ligne comme un ticket.
     """
+
     __tablename__ = "maintenance"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -25,7 +26,8 @@ class Intervention(Base):
     Lié à un équipement via `id_equipement` (obligatoire)
     et optionnellement à un ticket via `ticket_id`.
     """
-    __tablename__ = "interventions"
+
+    __tablename__ = "maintenance"
 
     id = Column(Integer, primary_key=True, index=True)
 

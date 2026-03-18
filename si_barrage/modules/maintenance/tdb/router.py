@@ -136,11 +136,9 @@ async def maintenance_dashboard_page():
 
 @router.get("/api/equipment-table", response_class=HTMLResponse)
 async def equipment_table(
-    prefix: str = "",
-    status: str = "",
-    db: Session = Depends(get_db)
+    prefix: str = "", status: str = "", db: Session = Depends(get_db)
 ):
-    rows = services.get_equipment_last_events(db, prefix, status)
+    rows = services.get_equipment_events(db, prefix, status)
 
     trs = ""
     for r in rows:

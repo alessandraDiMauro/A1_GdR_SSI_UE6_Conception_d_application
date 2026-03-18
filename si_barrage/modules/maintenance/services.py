@@ -1,17 +1,22 @@
 from __future__ import annotations
 
-from typing import Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from sqlalchemy import desc, func, text
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
 
-from .models import MaintenanceTicket, Intervention
+from .models import Intervention, MaintenanceTicket
 from .schemas import InterventionCreate, InterventionUpdate
 
 
 def equipment_exists(db: Session, id_equipement: str) -> bool:
     # Un équipement "existe" si on a au moins un ticket dans maintenance
-    return db.query(MaintenanceTicket.id).filter(MaintenanceTicket.id_equipement == id_equipement).first() is not None
+    return (
+        db.query(MaintenanceTicket.id)
+        .filter(MaintenanceTicket.id_equipement == id_equipement)
+        .first()
+        is not None
+    )
 
 
 def get_interventions(
@@ -58,7 +63,9 @@ def create_intervention(
     return intervention
 
 
-def update_intervention(db: Session, intervention: Intervention, payload: InterventionUpdate) -> Intervention:
+def update_intervention(
+    db: Session, intervention: Intervention, payload: InterventionUpdate
+) -> Intervention:
     data = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
         setattr(intervention, k, v)
@@ -114,14 +121,14 @@ def analyse_recurrent_breakdowns(
         for r in rows
     ]
     return total, top, periode
+
+
 # Logique métier pour la maintenance
 
-from typing import Any, Dict, List
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 def get_equipment_last_events(db: Session) -> List[Dict[str, Any]]:
-    result = db.execute(text("""
+    result = db.execute(
+        text("""
       WITH last_by_eq AS (
           SELECT id_equipement, MAX(date_creation) AS max_date
           FROM maintenance
@@ -137,34 +144,41 @@ def get_equipment_last_events(db: Session) -> List[Dict[str, Any]]:
         ON l.id_equipement = m.id_equipement
        AND l.max_date = m.date_creation
       ORDER BY m.id_equipement ASC
-    """)).fetchall()
+    """)
+    ).fetchall()
 
     out = []
     for row in result:
-        out.append({
-            "id_equipement": row[0],
-            "nom_equipement": row[1],
-            "statut": row[2],
-            "date_creation": row[3],
-            "description": row[4] if len(row) > 4 else None
-        })
+        out.append(
+            {
+                "id_equipement": row[0],
+                "nom_equipement": row[1],
+                "statut": row[2],
+                "date_creation": row[3],
+                "description": row[4] if len(row) > 4 else None,
+            }
+        )
     return out
 
-#partie kpis status d'équipement 
+
+# partie kpis status d'équipement
+
 
 def get_kpis(db):
 
-    result = db.execute(text("""
+    result = db.execute(
+        text("""
         SELECT
             COUNT(*) as total,
             SUM(CASE WHEN statut = 'Terminé' THEN 1 ELSE 0 END) as termines,
             SUM(CASE WHEN statut = 'En cours' THEN 1 ELSE 0 END) as encours,
             SUM(CASE WHEN statut = 'En attente' THEN 1 ELSE 0 END) as attente
         FROM maintenance
-    """)).fetchone()
+    """)
+    ).fetchone()
 
     return {
         "termines": result[1] or 0,
         "encours": result[2] or 0,
-        "attente": result[3] or 0
+        "attente": result[3] or 0,
     }

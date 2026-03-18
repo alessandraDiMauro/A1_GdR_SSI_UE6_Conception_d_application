@@ -1,7 +1,7 @@
 from sqlalchemy import text
 
 
-def get_equipment_last_events(db, prefix: str = "", status: str = ""):
+def get_equipment_events(db, prefix: str = "", status: str = ""):
     params = {
         "prefix": prefix.upper() if prefix else "",
         "status": status if status else "",
@@ -37,7 +37,7 @@ def get_equipment_last_events(db, prefix: str = "", status: str = ""):
               AND (:status = '' OR statut = :status)
             ORDER BY date_creation DESC, id_equipement ASC
         """),
-        params
+        params,
     ).fetchall()
 
     return [

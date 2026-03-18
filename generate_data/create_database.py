@@ -1,10 +1,11 @@
-import sqlite3
 import csv
 import os
+import sqlite3
 
 # Define the path for the database and the data directory
 DB_FILE = "barrage.db"
 DATA_DIR = "generate_data"
+
 
 def create_database():
     """
@@ -37,7 +38,14 @@ def create_database():
         nom_equipement TEXT,
         statut TEXT,
         description TEXT,
-        date_creation TEXT
+        date_creation TEXT,
+        ticket_id INTEGER,
+        date_intervention TEXT,
+        intervenant TEXT,
+        solution TEXT,
+        duree_minutes INTEGER,
+        cout REAL,
+        pieces_changees TEXT
     );
     """)
 
@@ -66,6 +74,7 @@ def create_database():
     conn.close()
     print("Database and tables created successfully.")
 
+
 def populate_table(table_name, csv_file):
     """
     Populates a table from a given CSV file.
@@ -74,31 +83,46 @@ def populate_table(table_name, csv_file):
     cursor = conn.cursor()
 
     csv_path = os.path.join(DATA_DIR, csv_file)
-    
+
     print(f"Populating table '{table_name}' from '{csv_path}'...")
 
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.reader(f)
         header = next(reader)  # Skip header row
-        
+
         # Prepare the insert statement
         # The number of placeholders must match the number of columns in the CSV
-        placeholders = ', '.join(['?'] * len(header))
-        query = f"INSERT INTO {table_name} ({', '.join(header)}) VALUES ({placeholders})"
-        
+        placeholders = ", ".join(["?"] * len(header))
+        query = (
+            f"INSERT INTO {table_name} ({', '.join(header)}) VALUES ({placeholders})"
+        )
+
         # Read data and insert into the table
         count = 0
         for row in reader:
+            # Ignore blank lines frequently present at end of CSV files.
+            if not row or all(not cell.strip() for cell in row):
+                continue
+
+            # Skip malformed rows instead of crashing the full import.
+            if len(row) != len(header):
+                print(
+                    f"Skipping malformed row in '{csv_file}': "
+                    f"expected {len(header)} values, got {len(row)} -> {row}"
+                )
+                continue
+
             try:
                 cursor.execute(query, row)
                 count += 1
-            except sqlite3.InterfaceError as e:
+            except (sqlite3.InterfaceError, sqlite3.ProgrammingError) as e:
                 print(f"Error inserting row: {row}")
                 print(e)
 
     conn.commit()
     conn.close()
     print(f"Inserted {count} rows into '{table_name}'.")
+
 
 if __name__ == "__main__":
     create_database()
