@@ -159,7 +159,18 @@ async def equipment_table(
           <td>{r["nom_equipement"]}</td>
           <td>{r["statut"]}</td>
           <td>{r["date_creation"]}</td>
+          <td>{r["ticket_id"]}</td>
           <td>{r["description"]}</td>
+           <td>
+                <button 
+                    style="background:#FFF8F7; color:black; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;"
+                    hx-delete="/maintenance/tickets/{r['ticket_id']}"
+                    hx-target="closest tr"
+                    hx-swap="outerHTML"
+                    hx-confirm="Supprimer ce ticket ?">
+                    Supprimer
+                </button>
+            </td>
         </tr>
         """
 
@@ -171,6 +182,7 @@ async def equipment_table(
           <th>Nom</th>
           <th>Dernier statut</th>
           <th>Dernière MAJ</th>
+          <th>Num_ticket</th>
           <th>Description</th>
         </tr>
       </thead>

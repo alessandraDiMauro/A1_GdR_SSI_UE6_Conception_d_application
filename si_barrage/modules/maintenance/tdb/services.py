@@ -16,6 +16,7 @@ def get_equipment_events(db, prefix: str = "", status: str = ""):
                     COALESCE(nom_equipement, id_equipement) AS nom_equipement,
                     statut,
                     date_creation,
+                    ticket_id,
                     description,
                     ROW_NUMBER() OVER (
                         PARTITION BY id_equipement
@@ -30,6 +31,7 @@ def get_equipment_events(db, prefix: str = "", status: str = ""):
                 nom_equipement,
                 statut,
                 date_creation,
+                ticket_id,
                 description
             FROM ranked
             WHERE rn = 1
@@ -46,7 +48,8 @@ def get_equipment_events(db, prefix: str = "", status: str = ""):
             "nom_equipement": r[1],
             "statut": r[2],
             "date_creation": r[3],
-            "description": r[4],
+            "ticket_id": r[4],
+            "description": r[5],
         }
         for r in result
     ]
@@ -97,3 +100,5 @@ def get_id_prefixes(db):
     ).fetchall()
 
     return [r[0] for r in rows if r[0]]
+
+

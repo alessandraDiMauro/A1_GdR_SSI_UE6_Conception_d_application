@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -310,3 +310,19 @@ def analyse_interventions(
         "top_problemes": top,
         "periode": periode,
     }
+
+@router.delete("/tickets/{ticket_id}")
+async def delete_ticket(ticket_id: int, db: Session = Depends(get_db)):
+    try:
+        sql = text("""
+            DELETE FROM maintenance
+            WHERE id = :ticket_id
+        """)
+        db.execute(sql, {"ticket_id": ticket_id})
+        db.commit()
+        # HTMX : on supprime juste la ligne dans le DOM
+        return Response(status_code=200, content="")
+    except Exception as e:
+        db.rollback()
+        print("Erreur suppression:", e)
+        return Response(status_code=500, content="Erreur lors de la suppression")
