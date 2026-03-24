@@ -28,15 +28,16 @@ def get_interventions(
     limit: int = 50,
     offset: int = 0,
 ) -> List[MaintenanceTicket]:
-    
-    """On considère ici que l'historique d'intervention correspond
-    aux tickets / maintenances exploitables, en priorité ceux terminés.
     """
-
+    Retourne tout l'historique d'un équipement.
+    On n'affiche pas seulement les lignes 'Terminé', sinon
+    les nouveaux tickets / nouvelles pannes n'apparaissent pas.
+    On exclut uniquement les lignes marquées 'Supprimé'.
+    """
     return (
         db.query(MaintenanceTicket)
         .filter(MaintenanceTicket.id_equipement == id_equipement)
-        .filter(MaintenanceTicket.statut == "Terminé")
+        .filter(MaintenanceTicket.statut != "Supprimé")
         .order_by(
             desc(MaintenanceTicket.date_intervention),
             desc(MaintenanceTicket.date_creation),
@@ -52,7 +53,7 @@ def get_intervention_by_id(
     db: Session, intervention_id: int
 ) -> Optional[MaintenanceTicket]:
     """
-    On Récupère une ligne de maintenance par son identifiant.
+    Récupère une ligne de maintenance par son identifiant.
     Cette ligne sert de support au détail d'intervention.
     """
     return (
@@ -68,7 +69,9 @@ def create_intervention(
     payload: InterventionCreate,
 ) -> MaintenanceTicket:
     """
-    On crée désormais directement une ligne dans `maintenance`.
+    Crée une nouvelle ligne dans `maintenance`.
+    Chaque nouvelle intervention sur un équipement crée
+    un nouvel enregistrement pour préserver l'historique.
     """
     row = MaintenanceTicket(
         id_equipement=id_equipement,
@@ -96,7 +99,8 @@ def update_intervention(
     payload: InterventionUpdate,
 ) -> MaintenanceTicket:
     """
-    Mise à jour d'une ligne de maintenance utilisée comme intervention.
+    Pour préserver l'historique, on ne modifie pas la ligne existante.
+    On crée une nouvelle ligne à partir de l'ancienne + des nouvelles valeurs.
     """
     data = payload.model_dump(exclude_unset=True)
 
@@ -105,15 +109,29 @@ def update_intervention(
         data["description"] = data.pop("probleme")
 
     if "date_intervention" in data and "date_creation" not in data:
-        # on garde aussi une cohérence minimale avec date_creation
         data["date_creation"] = data["date_intervention"]
 
-    for k, v in data.items():
-        setattr(intervention, k, v)
+    new_row = MaintenanceTicket(
+        id_equipement=intervention.id_equipement,
+        nom_equipement=intervention.nom_equipement,
+        statut=data.get("statut", intervention.statut),
+        description=data.get("description", intervention.description),
+        date_creation=data.get("date_creation", intervention.date_creation),
+        ticket_id=data.get("ticket_id", intervention.ticket_id),
+        date_intervention=data.get(
+            "date_intervention", intervention.date_intervention
+        ),
+        intervenant=data.get("intervenant", intervention.intervenant),
+        solution=data.get("solution", intervention.solution),
+        duree_minutes=data.get("duree_minutes", intervention.duree_minutes),
+        cout=data.get("cout", intervention.cout),
+        pieces_changees=data.get("pieces_changees", intervention.pieces_changees),
+    )
 
+    db.add(new_row)
     db.commit()
-    db.refresh(intervention)
-    return intervention
+    db.refresh(new_row)
+    return new_row
 
 
 def analyse_recurrent_breakdowns(
@@ -125,14 +143,14 @@ def analyse_recurrent_breakdowns(
     end_date: Optional[str] = None,
 ) -> Tuple[int, List[dict], Optional[dict]]:
     """
-    Le champ `description` est utilisé comme problème.
-    On travaille sur les lignes terminées pour représenter
-    un historique d'interventions réellement clôturées.
+    Analyse des problèmes récurrents d'un équipement.
+    On travaille sur toutes les lignes non supprimées pour que
+    les nouvelles pannes remontent aussi dans l'analyse.
     """
     query = (
         db.query(MaintenanceTicket)
         .filter(MaintenanceTicket.id_equipement == id_equipement)
-        .filter(MaintenanceTicket.statut == "Terminé")
+        .filter(MaintenanceTicket.statut != "Supprimé")
     )
 
     if start_date:
@@ -175,7 +193,7 @@ def analyse_recurrent_breakdowns(
             ).label("derniere_date"),
         )
         .filter(MaintenanceTicket.id_equipement == id_equipement)
-        .filter(MaintenanceTicket.statut == "Terminé")
+        .filter(MaintenanceTicket.statut != "Supprimé")
         .filter(
             func.coalesce(
                 MaintenanceTicket.date_intervention,
@@ -218,10 +236,10 @@ def analyse_recurrent_breakdowns(
 
 
 def get_equipment_last_events(db: Session) -> List[Dict[str, Any]]:
-
     """
     Retourne le dernier état connu par équipement à partir de `maintenance`.
     Une seule ligne par équipement.
+    On exclut les lignes supprimées.
     """
     result = db.execute(
         text("""
@@ -240,6 +258,7 @@ def get_equipment_last_events(db: Session) -> List[Dict[str, Any]]:
                 FROM maintenance
                 WHERE id_equipement IS NOT NULL
                   AND LENGTH(id_equipement) > 0
+                  AND statut != 'Supprimé'
             )
             SELECT
                 id_equipement,
@@ -269,6 +288,7 @@ def get_kpis(db: Session) -> Dict[str, int]:
     """
     KPI sur l'état actuel du parc.
     On compte le dernier statut connu de chaque équipement, pas tout l'historique.
+    On exclut les lignes supprimées.
     """
     result = db.execute(
         text("""
@@ -284,6 +304,7 @@ def get_kpis(db: Session) -> Dict[str, int]:
                 FROM maintenance
                 WHERE id_equipement IS NOT NULL
                   AND LENGTH(id_equipement) > 0
+                  AND statut != 'Supprimé'
             )
             SELECT
                 COUNT(*) AS total,

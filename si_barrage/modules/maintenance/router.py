@@ -16,7 +16,7 @@ from .ui_router import router as ui_router
 
 router = APIRouter()
 
-# On branche le sous-router du tableau de bord
+# Sous-routeurs
 router.include_router(tdb_router, prefix="/tdb", tags=["TDB Maintenance"])
 router.include_router(ui_router, prefix="", tags=["UI Maintenance"])
 
@@ -32,13 +32,36 @@ async def create_ticket(
     niv_urgence: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    """
+    Création d'un ticket :
+    on insère une nouvelle ligne dans maintenance.
+    Le problème reste dans `description`.
+    Le technicien est stocké dans `intervenant`.
+    Le niveau d'urgence reste ajouté dans `solution` en attendant
+    un champ dédié dans le schéma de base.
+    """
     try:
-        my_description = f"{description}, technicien: {nom}, niv_urgence: {niv_urgence}"
-
         sql = text("""
-            INSERT INTO maintenance 
-            (id_equipement, nom_equipement, statut, description, date_creation) 
-            VALUES (:id_equipement, :nom_equipement, :statut, :description, :date_creation)
+            INSERT INTO maintenance
+            (
+                id_equipement,
+                nom_equipement,
+                statut,
+                description,
+                date_creation,
+                intervenant,
+                solution
+            )
+            VALUES
+            (
+                :id_equipement,
+                :nom_equipement,
+                :statut,
+                :description,
+                :date_creation,
+                :intervenant,
+                :solution
+            )
         """)
 
         db.execute(
@@ -47,8 +70,10 @@ async def create_ticket(
                 "id_equipement": id_equipement,
                 "nom_equipement": nom_equipement,
                 "statut": statut,
-                "description": my_description,
+                "description": description.strip(),
                 "date_creation": date_creation,
+                "intervenant": nom.strip(),
+                "solution": f"Niveau d'urgence: {niv_urgence}",
             },
         )
         db.commit()
@@ -57,7 +82,7 @@ async def create_ticket(
 
     except Exception as e:
         db.rollback()
-        print("Erreur:", e)
+        print("Erreur création ticket:", e)
         return RedirectResponse(
             url="/maintenance/nouveau-ticket?error=1", status_code=303
         )
@@ -73,37 +98,37 @@ async def nouveau_ticket_page():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Nouveau ticket — Maintenance</title>
         <style>
-            body { 
-                font-family: system-ui; 
-                max-width: 600px; 
-                margin: 40px auto; 
+            body {
+                font-family: system-ui;
+                max-width: 600px;
+                margin: 40px auto;
                 padding: 20px;
             }
             .form-group { margin-bottom: 20px; }
             label { display: block; margin-bottom: 5px; font-weight: 500; }
-            input, select, textarea { 
-                width: 100%; 
-                padding: 12px; 
-                border: 1px solid #ddd; 
-                border-radius: 6px; 
+            input, select, textarea {
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
                 font-size: 16px;
                 box-sizing: border-box;
             }
-            .btn { 
-                background: #28a745; 
-                color: white; 
-                padding: 14px 28px; 
-                border: none; 
-                border-radius: 6px; 
-                font-size: 16px; 
+            .btn {
+                background: #28a745;
+                color: white;
+                padding: 14px 28px;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
                 cursor: pointer;
                 width: 100%;
             }
             .btn:hover { background: #218838; }
-            .back-link { 
-                display: inline-block; 
-                margin-bottom: 30px; 
-                color: #007bff; 
+            .back-link {
+                display: inline-block;
+                margin-bottom: 30px;
+                color: #007bff;
                 text-decoration: none;
             }
             .back-link:hover { text-decoration: underline; }
@@ -112,25 +137,25 @@ async def nouveau_ticket_page():
     </head>
     <body>
         <a href="/maintenance/tdb/" class="back-link">← Retour au tableau de bord</a>
-        
+
         <h1>➕ Nouveau ticket de maintenance</h1>
-        
+
         <form action="/maintenance/tickets" method="POST">
             <div class="form-group">
                 <label for="nom">Technicien :</label>
                 <input type="text" id="nom" name="nom" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="id_equipement">ID Équipement :</label>
                 <input type="text" id="id_equipement" name="id_equipement" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="nom_equipement">Nom Équipement :</label>
                 <input type="text" id="nom_equipement" name="nom_equipement" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="statut">Statut :</label>
                 <select id="statut" name="statut" required>
@@ -140,7 +165,7 @@ async def nouveau_ticket_page():
                     <option value="Terminé">Terminé</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label for="niv_urgence">Niveau d'urgence :</label>
                 <select id="niv_urgence" name="niv_urgence" required>
@@ -151,18 +176,18 @@ async def nouveau_ticket_page():
                     <option value="critique">Critique</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label for="description">Description du problème :</label>
-                <textarea id="description" name="description" rows="4" required 
+                <textarea id="description" name="description" rows="4" required
                           placeholder="Décrivez précisément le problème rencontré..."></textarea>
             </div>
-            
+
             <div class="form-group">
                 <label>Date de création :</label>
                 <input type="date" id="date_creation" name="date_creation" required>
             </div>
-            
+
             <button type="submit" class="btn">Créer le ticket</button>
         </form>
     </body>
@@ -171,10 +196,18 @@ async def nouveau_ticket_page():
     return HTMLResponse(content=html)
 
 
-# BONUS: liste des tickets existants (pratique, et garde /tickets utile)
 @router.get("/tickets")
 def list_tickets(db: Session = Depends(get_db)):
-    tickets = db.query(MaintenanceTicket).order_by(MaintenanceTicket.id.desc()).all()
+    """
+    Liste brute des tickets / lignes maintenance.
+    On peut exclure les supprimés si besoin.
+    """
+    tickets = (
+        db.query(MaintenanceTicket)
+        .filter(MaintenanceTicket.statut != "Supprimé")
+        .order_by(MaintenanceTicket.id.desc())
+        .all()
+    )
     return [
         {
             "id": t.id,
@@ -243,7 +276,6 @@ def create_intervention(
             status_code=404, detail=f"Équipement inconnu: {id_equipement}"
         )
 
-    # Validation: ticket_id doit exister si fourni + correspondre au bon équipement
     if payload.ticket_id is not None:
         ticket = (
             db.query(MaintenanceTicket)
@@ -285,7 +317,6 @@ def analyse_interventions(
             status_code=404, detail=f"Équipement inconnu: {id_equipement}"
         )
 
-    # Valide dates si fournies
     for label, value in [("start_date", start_date), ("end_date", end_date)]:
         if value is not None:
             try:
@@ -311,18 +342,28 @@ def analyse_interventions(
         "periode": periode,
     }
 
+
 @router.delete("/tickets/{ticket_id}")
 async def delete_ticket(ticket_id: int, db: Session = Depends(get_db)):
+    """
+    Suppression logique :
+    on ne supprime pas physiquement la ligne,
+    on marque simplement le ticket comme supprimé.
+    Ainsi, l'historique reste traçable.
+    """
     try:
         sql = text("""
-            DELETE FROM maintenance
+            UPDATE maintenance
+            SET statut = 'Supprimé'
             WHERE id = :ticket_id
         """)
         db.execute(sql, {"ticket_id": ticket_id})
         db.commit()
-        # HTMX : on supprime juste la ligne dans le DOM
+
+        # HTMX : succès, on peut retirer la ligne du DOM côté client
         return Response(status_code=200, content="")
     except Exception as e:
         db.rollback()
         print("Erreur suppression:", e)
         return Response(status_code=500, content="Erreur lors de la suppression")
+    

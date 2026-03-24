@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 class InterventionBase(BaseModel):
     """
     Schéma logique utilisé par l'API pour représenter une intervention,
-    même si les données sont désormais stockées dans la table `maintenance`.
+    même si les données sont stockées dans la table `maintenance`.
     """
 
     date_intervention: str = Field(
@@ -19,16 +19,19 @@ class InterventionBase(BaseModel):
         ...,
         min_length=1,
         examples=["M. Kabila"],
+        description="Nom du technicien / intervenant",
     )
     probleme: str = Field(
         ...,
         min_length=1,
         examples=["Vibration anormale"],
+        description="Description du problème constaté",
     )
     solution: str = Field(
         ...,
         min_length=1,
         examples=["Roulements changés"],
+        description="Solution apportée",
     )
 
     ticket_id: Optional[int] = Field(
@@ -38,20 +41,24 @@ class InterventionBase(BaseModel):
     statut: Optional[str] = Field(
         None,
         examples=["Terminé"],
+        description="Statut de l'intervention ou du ticket",
     )
     duree_minutes: Optional[int] = Field(
         None,
         ge=0,
         examples=[90],
+        description="Durée de l'intervention en minutes",
     )
     cout: Optional[float] = Field(
         None,
         ge=0,
         examples=[150.0],
+        description="Coût estimé ou réel",
     )
     pieces_changees: Optional[str] = Field(
         None,
         examples=["Roulements, joint"],
+        description="Pièces remplacées pendant l'intervention",
     )
 
     @field_validator("date_intervention")
@@ -76,12 +83,18 @@ class InterventionBase(BaseModel):
 class InterventionCreate(InterventionBase):
     """
     Payload de création logique d'une intervention.
-    Les données seront stockées dans la table `maintenance`.
+    Les données sont enregistrées dans la table `maintenance`.
     """
     pass
 
 
 class InterventionUpdate(BaseModel):
+    """
+    Payload de mise à jour logique.
+    Dans notre logique métier, une mise à jour crée une nouvelle ligne
+    pour préserver l'historique.
+    """
+
     date_intervention: Optional[str] = None
     intervenant: Optional[str] = None
     probleme: Optional[str] = None
@@ -122,6 +135,10 @@ class InterventionUpdate(BaseModel):
 
 
 class InterventionRead(InterventionBase):
+    """
+    Schéma de lecture renvoyé par l'API.
+    """
+
     id: int
     id_equipement: str
 
@@ -130,6 +147,10 @@ class InterventionRead(InterventionBase):
 
 
 class ProblemStat(BaseModel):
+    """
+    Statistique d'un problème récurrent.
+    """
+
     probleme: str
     occurrences: int
     premiere_date: str
@@ -137,6 +158,10 @@ class ProblemStat(BaseModel):
 
 
 class AnalyseRead(BaseModel):
+    """
+    Réponse d'analyse des interventions d'un équipement.
+    """
+
     id_equipement: str
     total_interventions: int
     top_problemes: List[ProblemStat]

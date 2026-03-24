@@ -311,6 +311,10 @@ def page_interventions_list(
 """
 
     rows = services.get_interventions(db, id_equipement, limit=limit, offset=offset)
+
+    # On masque les lignes supprimées côté affichage si jamais elles remontent
+    rows = [it for it in rows if it.statut != "Supprimé"]
+
     if not rows:
         return f"""
 <div class="alert alert-info">
@@ -322,12 +326,13 @@ def page_interventions_list(
     for it in rows:
         problem = it.description or ""
         date_value = it.date_intervention or it.date_creation or ""
+        intervenant_value = it.intervenant or ""
 
         trs.append(f"""
 <tr class="hover">
   <td class="font-mono">{it.id}</td>
   <td>{_html_escape(str(date_value))}</td>
-  <td>{_html_escape(it.intervenant or "")}</td>
+  <td>{_html_escape(intervenant_value)}</td>
   <td>{_html_escape(problem)}</td>
   <td class="text-right">
     <button class="btn btn-xs btn-outline" onclick="loadDetail({it.id})">Voir</button>
