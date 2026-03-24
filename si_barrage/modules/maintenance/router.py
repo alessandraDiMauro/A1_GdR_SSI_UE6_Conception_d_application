@@ -33,12 +33,13 @@ async def create_ticket(
     db: Session = Depends(get_db),
 ):
     """
-    Création d'un ticket :
-    on insère une nouvelle ligne dans maintenance.
-    Le problème reste dans `description`.
-    Le technicien est stocké dans `intervenant`.
-    Le niveau d'urgence reste ajouté dans `solution` en attendant
-    un champ dédié dans le schéma de base.
+    Création d'un ticket de maintenance.
+
+    Important :
+    - description = problème uniquement
+    - intervenant = technicien
+    - solution = utilisé ici pour stocker temporairement
+      le niveau d'urgence, faute de champ dédié
     """
     try:
         sql = text("""
@@ -67,13 +68,13 @@ async def create_ticket(
         db.execute(
             sql,
             {
-                "id_equipement": id_equipement,
-                "nom_equipement": nom_equipement,
-                "statut": statut,
+                "id_equipement": id_equipement.strip(),
+                "nom_equipement": nom_equipement.strip(),
+                "statut": statut.strip(),
                 "description": description.strip(),
                 "date_creation": date_creation,
                 "intervenant": nom.strip(),
-                "solution": f"Niveau d'urgence: {niv_urgence}",
+                "solution": f"Niveau d'urgence: {niv_urgence.strip()}",
             },
         )
         db.commit()
@@ -84,7 +85,8 @@ async def create_ticket(
         db.rollback()
         print("Erreur création ticket:", e)
         return RedirectResponse(
-            url="/maintenance/nouveau-ticket?error=1", status_code=303
+            url="/maintenance/nouveau-ticket?error=1",
+            status_code=303,
         )
 
 
@@ -199,8 +201,8 @@ async def nouveau_ticket_page():
 @router.get("/tickets")
 def list_tickets(db: Session = Depends(get_db)):
     """
-    Liste brute des tickets / lignes maintenance.
-    On peut exclure les supprimés si besoin.
+    Liste brute des tickets / lignes de maintenance.
+    On exclut les lignes supprimées logiquement.
     """
     tickets = (
         db.query(MaintenanceTicket)
@@ -234,11 +236,15 @@ def get_interventions(
 ):
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
-            status_code=404, detail=f"Équipement inconnu: {id_equipement}"
+            status_code=404,
+            detail=f"Équipement inconnu: {id_equipement}",
         )
 
     interventions = services.get_interventions(
-        db, id_equipement, limit=limit, offset=offset
+        db,
+        id_equipement,
+        limit=limit,
+        offset=offset,
     )
     return interventions
 
@@ -255,7 +261,8 @@ def get_intervention_detail(
     intervention = services.get_intervention_by_id(db, intervention_id)
     if not intervention:
         raise HTTPException(
-            status_code=404, detail=f"Intervention introuvable: {intervention_id}"
+            status_code=404,
+            detail=f"Intervention introuvable: {intervention_id}",
         )
     return intervention
 
@@ -273,7 +280,8 @@ def create_intervention(
 ):
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
-            status_code=404, detail=f"Équipement inconnu: {id_equipement}"
+            status_code=404,
+            detail=f"Équipement inconnu: {id_equipement}",
         )
 
     if payload.ticket_id is not None:
@@ -284,7 +292,8 @@ def create_intervention(
         )
         if not ticket:
             raise HTTPException(
-                status_code=404, detail=f"Ticket introuvable: {payload.ticket_id}"
+                status_code=404,
+                detail=f"Ticket introuvable: {payload.ticket_id}",
             )
         if ticket.id_equipement != id_equipement:
             raise HTTPException(
@@ -305,16 +314,19 @@ def analyse_interventions(
     id_equipement: str = Path(..., examples=["T1"]),
     top_n: int = Query(5, ge=1, le=50),
     start_date: Optional[str] = Query(
-        None, description="Filtre date ISO YYYY-MM-DD (inclusive)"
+        None,
+        description="Filtre date ISO YYYY-MM-DD (inclusive)",
     ),
     end_date: Optional[str] = Query(
-        None, description="Filtre date ISO YYYY-MM-DD (inclusive)"
+        None,
+        description="Filtre date ISO YYYY-MM-DD (inclusive)",
     ),
     db: Session = Depends(get_db),
 ):
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
-            status_code=404, detail=f"Équipement inconnu: {id_equipement}"
+            status_code=404,
+            detail=f"Équipement inconnu: {id_equipement}",
         )
 
     for label, value in [("start_date", start_date), ("end_date", end_date)]:
@@ -346,24 +358,50 @@ def analyse_interventions(
 @router.delete("/tickets/{ticket_id}")
 async def delete_ticket(ticket_id: int, db: Session = Depends(get_db)):
     """
-    Suppression logique :
-    on ne supprime pas physiquement la ligne,
-    on marque simplement le ticket comme supprimé.
-    Ainsi, l'historique reste traçable.
+    Suppression logique d'un ticket.
+
+    On ne supprime pas physiquement la ligne de la base.
+    On met simplement son statut à 'Supprimé' pour :
+    - garder la traçabilité
+    - permettre au TDB et à l'historique d'exclure cette ligne proprement
+
+    Important :
+    - ici `ticket_id` correspond à l'identifiant réel de la ligne dans la table maintenance
+    - cela permet aussi de supprimer les nouveaux tickets créés localement
     """
     try:
-        sql = text("""
-            UPDATE maintenance
-            SET statut = 'Supprimé'
-            WHERE id = :ticket_id
-        """)
-        db.execute(sql, {"ticket_id": ticket_id})
+        ticket = (
+            db.query(MaintenanceTicket)
+            .filter(MaintenanceTicket.id == ticket_id)
+            .first()
+        )
+
+        if not ticket:
+            return Response(
+                status_code=404,
+                content="Ticket introuvable.",
+            )
+
+        # On évite de retraiter une ligne déjà supprimée
+        if ticket.statut == "Supprimé":
+            return Response(
+                status_code=200,
+                content="Le ticket était déjà supprimé.",
+            )
+
+        # Suppression logique
+        ticket.statut = "Supprimé"
         db.commit()
 
-        # HTMX : succès, on peut retirer la ligne du DOM côté client
-        return Response(status_code=200, content="")
+        return Response(
+            status_code=200,
+            content=f"Suppression effectuée avec succès pour l'équipement {ticket.id_equipement}.",
+        )
+
     except Exception as e:
         db.rollback()
         print("Erreur suppression:", e)
-        return Response(status_code=500, content="Erreur lors de la suppression")
-    
+        return Response(
+            status_code=500,
+            content="Erreur lors de la suppression.",
+        )

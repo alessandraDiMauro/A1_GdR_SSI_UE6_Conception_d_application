@@ -10,6 +10,17 @@ router = APIRouter()
 
 @router.get("/", response_class=HTMLResponse)
 async def maintenance_dashboard_page():
+    """
+    Page principale du tableau de bord maintenance.
+
+    Cette page charge dynamiquement :
+    - les KPI
+    - les filtres
+    - le tableau des équipements
+
+    On utilise HTMX pour éviter un rechargement manuel complet
+    après chaque action.
+    """
     html = """
     <!DOCTYPE html>
     <html lang="fr">
@@ -54,12 +65,6 @@ async def maintenance_dashboard_page():
             margin-top: 5px;
         }
 
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 12px;
-            padding: 16px;
-        }
-
         .loading {
             color: #666;
             padding: 12px;
@@ -89,11 +94,39 @@ async def maintenance_dashboard_page():
             gap: 16px;
             margin: 20px 0;
             align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-delete:hover {
+            background: #bb2d3b;
+        }
+
+        .flash-message {
+            display: none;
+            margin: 14px 0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            background: #d1e7dd;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+            font-weight: 500;
         }
       </style>
     </head>
     <body>
       <h1>🛠️ Maintenance : Vue globale du parc</h1>
+
+      <div id="flash-message" class="flash-message"></div>
 
       <h3>Répartition des équipements par statut</h3>
       <div id="kpis"
@@ -129,6 +162,42 @@ async def maintenance_dashboard_page():
            🛠️ Voir l'historique des interventions
         </a>
       </div>
+
+      <script>
+        // Après une suppression réussie :
+        // - on recharge le tableau
+        // - on recharge les KPI
+        // - on affiche un message temporaire
+        document.body.addEventListener("htmx:afterRequest", function(event) {
+          const elt = event.detail.elt;
+
+          if (elt && elt.matches(".btn-delete") && event.detail.successful) {
+            const equipmentName = elt.getAttribute("data-equipment-name") || "cet équipement";
+
+            const flash = document.getElementById("flash-message");
+            flash.textContent = "Suppression effectuée avec succès pour " + equipmentName + ".";
+            flash.style.display = "block";
+
+            htmx.ajax("GET", "/maintenance/tdb/api/equipment-table", {
+              target: "#equipment-table",
+              swap: "innerHTML",
+              values: {
+                prefix: document.getElementById("prefix-select")?.value || "",
+                status: document.getElementById("status-select")?.value || ""
+              }
+            });
+
+            htmx.ajax("GET", "/maintenance/tdb/api/kpis", {
+              target: "#kpis",
+              swap: "innerHTML"
+            });
+
+            setTimeout(() => {
+              flash.style.display = "none";
+            }, 3000);
+          }
+        });
+      </script>
     </body>
     </html>
     """
@@ -137,9 +206,19 @@ async def maintenance_dashboard_page():
 
 @router.get("/api/equipment-table", response_class=HTMLResponse)
 async def equipment_table(
-    prefix: str = "", status: str = "", db: Session = Depends(get_db)
+    prefix: str = "",
+    status: str = "",
+    db: Session = Depends(get_db),
 ):
-    #rows = services.get_equipment_last_events(db, prefix, status)
+    """
+    Construit le tableau du TDB.
+
+    Important :
+    - le TDB n'affiche qu'une seule ligne par équipement :
+      la plus récente
+    - la suppression utilise le vrai `id` de la ligne dans la table maintenance
+    - cela permet aussi de supprimer les tickets nouvellement créés
+    """
     rows = services.get_equipment_events(db, prefix, status)
 
     trs = ""
@@ -153,24 +232,28 @@ async def equipment_table(
         elif r["statut"] == "En attente":
             row_class = "status-attente"
 
+        equipment_name = r["nom_equipement"] or r["id_equipement"]
+
+        delete_btn = f"""
+        <button
+          class="btn-delete"
+          data-equipment-name="{equipment_name}"
+          hx-delete="/maintenance/tickets/{r['id']}"
+          hx-confirm="Voulez-vous vraiment supprimer l’équipement {equipment_name} ?"
+        >
+          Supprimer
+        </button>
+        """
+
         trs += f"""
         <tr class="{row_class}">
           <td>{r["id_equipement"]}</td>
-          <td>{r["nom_equipement"]}</td>
-          <td>{r["statut"]}</td>
-          <td>{r["date_creation"]}</td>
-          <td>{r["ticket_id"]}</td>
-          <td>{r["description"]}</td>
-           <td>
-                <button 
-                    style="background:#FFF8F7; color:black; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;"
-                    hx-delete="/maintenance/tickets/{r['ticket_id']}"
-                    hx-target="closest tr"
-                    hx-swap="outerHTML"
-                    hx-confirm="Supprimer ce ticket ?">
-                    Supprimer
-                </button>
-            </td>
+          <td>{r["nom_equipement"] or ""}</td>
+          <td>{r["statut"] or ""}</td>
+          <td>{r["date_creation"] or ""}</td>
+          <td>{r["ticket_id"] if r["ticket_id"] is not None else ""}</td>
+          <td>{r["description"] or ""}</td>
+          <td>{delete_btn}</td>
         </tr>
         """
 
@@ -184,10 +267,11 @@ async def equipment_table(
           <th>Dernière MAJ</th>
           <th>Num_ticket</th>
           <th>Description</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody>
-        {trs if trs else '<tr><td colspan="5">Aucune donnée maintenance.</td></tr>'}
+        {trs if trs else '<tr><td colspan="7">Aucune donnée maintenance.</td></tr>'}
       </tbody>
     </table>
     """
@@ -196,6 +280,12 @@ async def equipment_table(
 
 @router.get("/api/kpis", response_class=HTMLResponse)
 async def kpis(db: Session = Depends(get_db)):
+    """
+    Retourne les KPI du tableau de bord :
+    - terminés
+    - en cours
+    - en attente
+    """
     data = services.get_kpis(db)
 
     html = f"""
@@ -221,6 +311,11 @@ async def kpis(db: Session = Depends(get_db)):
 
 @router.get("/api/id-prefix-filter", response_class=HTMLResponse)
 async def id_prefix_filter(db: Session = Depends(get_db)):
+    """
+    Construit les filtres du TDB :
+    - filtre par préfixe d'équipement
+    - filtre par statut
+    """
     prefixes = services.get_id_prefixes(db)
 
     options = '<option value="">Tous</option>'
