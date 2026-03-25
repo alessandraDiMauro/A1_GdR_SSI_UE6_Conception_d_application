@@ -18,8 +18,7 @@ async def maintenance_dashboard_page():
     - les filtres
     - le tableau des équipements
 
-    On utilise HTMX pour éviter un rechargement manuel complet
-    après chaque action.
+    On utilise HTMX pour éviter un rechargement complet après chaque action.
     """
     html = """
     <!DOCTYPE html>
@@ -121,6 +120,12 @@ async def maintenance_dashboard_page():
             border: 1px solid #badbcc;
             font-weight: 500;
         }
+
+        .info-note {
+            color: #666;
+            margin: 8px 0 14px 0;
+            font-size: 14px;
+        }
       </style>
     </head>
     <body>
@@ -136,6 +141,9 @@ async def maintenance_dashboard_page():
       </div>
 
       <h3>Tableau récapitulatif des maintenances</h3>
+      <div class="info-note">
+        Le tableau affiche au maximum les 5 dernières entrées visibles, après application des filtres.
+      </div>
 
       <div id="filter"
            hx-get="/maintenance/tdb/api/id-prefix-filter"
@@ -214,10 +222,9 @@ async def equipment_table(
     Construit le tableau du TDB.
 
     Important :
-    - le TDB n'affiche qu'une seule ligne par équipement :
-      la plus récente
+    - le TDB n'affiche qu'une seule ligne par équipement : la plus récente
+    - le service limite déjà le résultat aux 5 dernières entrées visibles
     - la suppression utilise le vrai `id` de la ligne dans la table maintenance
-    - cela permet aussi de supprimer les tickets nouvellement créés
     """
     rows = services.get_equipment_events(db, prefix, status)
 

@@ -3,14 +3,14 @@ from sqlalchemy import text
 
 def get_equipment_events(db, prefix: str = "", status: str = ""):
     """
-    Retourne le dernier état connu de chaque équipement pour alimenter
-    le tableau de bord (TDB).
+    Retourne les équipements à afficher dans le tableau de bord (TDB).
 
-    Idée métier :
+    Logique métier :
     - un même équipement peut avoir plusieurs lignes dans `maintenance`
-      car cette table sert aussi d'historique
-    - le TDB, lui, ne doit afficher qu'une seule ligne par équipement :
-      la plus récente
+    - on ne garde que la ligne la plus récente de chaque équipement
+    - on exclut les lignes marquées 'Supprimé'
+    - on applique les filtres éventuels
+    - on limite l'affichage aux 5 dernières entrées visibles dans le TDB
     """
 
     params = {
@@ -30,7 +30,7 @@ def get_equipment_events(db, prefix: str = "", status: str = ""):
                     ticket_id,
                     description,
 
-                    -- On classe les lignes d'un même équipement
+                    -- On numérote les lignes de chaque équipement
                     -- de la plus récente à la plus ancienne.
                     ROW_NUMBER() OVER (
                         PARTITION BY id_equipement
@@ -39,9 +39,6 @@ def get_equipment_events(db, prefix: str = "", status: str = ""):
                 FROM maintenance
                 WHERE id_equipement IS NOT NULL
                   AND LENGTH(id_equipement) > 0
-
-                  -- Les suppressions logiques ne doivent plus apparaître
-                  -- dans le tableau de bord.
                   AND statut != 'Supprimé'
             )
             SELECT
@@ -54,21 +51,17 @@ def get_equipment_events(db, prefix: str = "", status: str = ""):
                 description
             FROM ranked
             WHERE rn = 1
-
-              -- Filtre optionnel sur la première lettre.
               AND (:prefix = '' OR UPPER(SUBSTR(id_equipement, 1, 1)) = :prefix)
-
-              -- Filtre optionnel sur le statut.
               AND (:status = '' OR statut = :status)
-
-            ORDER BY date_creation DESC, id_equipement ASC
+            ORDER BY date_creation DESC, id DESC
+            LIMIT 5
         """),
         params,
     ).fetchall()
 
     return [
         {
-            "id": r[0],  # vrai identifiant de la ligne
+            "id": r[0],  # vrai identifiant de la ligne dans maintenance
             "id_equipement": r[1],
             "nom_equipement": r[2],
             "statut": r[3],
@@ -84,11 +77,10 @@ def get_kpis(db):
     """
     Calcule les KPI du tableau de bord.
 
-    Logique :
+    Important :
     - on ne compte pas toutes les lignes historiques
-    - on compte uniquement le dernier état connu de chaque équipement
-
-    Les lignes 'Supprimé' sont exclues.
+    - on compte seulement le dernier état connu de chaque équipement
+    - les lignes 'Supprimé' sont exclues
     """
 
     result = db.execute(
@@ -98,9 +90,6 @@ def get_kpis(db):
                     id,
                     id_equipement,
                     statut,
-
-                    -- Même logique que pour le tableau :
-                    -- on identifie la ligne la plus récente par équipement.
                     ROW_NUMBER() OVER (
                         PARTITION BY id_equipement
                         ORDER BY date_creation DESC, id DESC
@@ -129,12 +118,12 @@ def get_kpis(db):
 
 def get_id_prefixes(db):
     """
-    Retourne la liste des préfixes disponibles pour le filtre du tableau de bord.
+    Retourne les préfixes disponibles pour le filtre du TDB.
 
-    On travaille ici aussi sur le dernier état connu de chaque équipement,
-    pour que le filtre reflète ce qui est réellement visible dans le TDB.
+    Exemple :
 
-    Les lignes 'Supprimé' sont exclues.
+    On se base sur le dernier état connu de chaque équipement,
+    pour que le filtre reste cohérent avec le tableau affiché.
     """
 
     rows = db.execute(

@@ -3,7 +3,6 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from si_barrage.db import get_db
@@ -35,48 +34,35 @@ async def create_ticket(
     """
     Création d'un ticket de maintenance.
 
-    Important :
-    - description = problème uniquement
-    - intervenant = technicien
-    - solution = utilisé ici pour stocker temporairement
-      le niveau d'urgence, faute de champ dédié
+    Logique retenue :
+    - on crée une nouvelle ligne dans la table `maintenance`
+    - `description` contient uniquement le problème
+    - `intervenant` contient le nom du technicien
+    - `solution` stocke temporairement le niveau d'urgence
+    - après insertion, on recopie l'identifiant auto-généré `id`
+      dans `ticket_id` pour que les nouveaux tickets aient eux aussi
+      un numéro de ticket visible dans le TDB
     """
     try:
-        sql = text("""
-            INSERT INTO maintenance
-            (
-                id_equipement,
-                nom_equipement,
-                statut,
-                description,
-                date_creation,
-                intervenant,
-                solution
-            )
-            VALUES
-            (
-                :id_equipement,
-                :nom_equipement,
-                :statut,
-                :description,
-                :date_creation,
-                :intervenant,
-                :solution
-            )
-        """)
-
-        db.execute(
-            sql,
-            {
-                "id_equipement": id_equipement.strip(),
-                "nom_equipement": nom_equipement.strip(),
-                "statut": statut.strip(),
-                "description": description.strip(),
-                "date_creation": date_creation,
-                "intervenant": nom.strip(),
-                "solution": f"Niveau d'urgence: {niv_urgence.strip()}",
-            },
+        new_ticket = MaintenanceTicket(
+            id_equipement=id_equipement.strip(),
+            nom_equipement=nom_equipement.strip(),
+            statut=statut.strip(),
+            description=description.strip(),
+            date_creation=date_creation,
+            intervenant=nom.strip(),
+            solution=f"Niveau d'urgence: {niv_urgence.strip()}",
         )
+
+        # Étape 1 : insertion
+        db.add(new_ticket)
+        db.commit()
+        db.refresh(new_ticket)
+
+        # Étape 2 : on affecte ticket_id = id
+        # Cela permet d'avoir un vrai numéro de ticket
+        # même pour les nouvelles lignes créées via le formulaire.
+        new_ticket.ticket_id = new_ticket.id
         db.commit()
 
         return RedirectResponse(url="/maintenance/tdb/", status_code=303)
@@ -92,6 +78,9 @@ async def create_ticket(
 
 @router.get("/nouveau-ticket", response_class=HTMLResponse)
 async def nouveau_ticket_page():
+    """
+    Formulaire HTML de création d'un nouveau ticket.
+    """
     html = """
     <!DOCTYPE html>
     <html lang="fr">
@@ -201,8 +190,9 @@ async def nouveau_ticket_page():
 @router.get("/tickets")
 def list_tickets(db: Session = Depends(get_db)):
     """
-    Liste brute des tickets / lignes de maintenance.
-    On exclut les lignes supprimées logiquement.
+    Liste brute des tickets encore actifs.
+
+    On exclut les lignes marquées 'Supprimé'.
     """
     tickets = (
         db.query(MaintenanceTicket)
@@ -210,14 +200,17 @@ def list_tickets(db: Session = Depends(get_db)):
         .order_by(MaintenanceTicket.id.desc())
         .all()
     )
+
     return [
         {
             "id": t.id,
+            "ticket_id": t.ticket_id,
             "id_equipement": t.id_equipement,
             "nom_equipement": t.nom_equipement,
             "statut": t.statut,
             "description": t.description,
             "date_creation": t.date_creation,
+            "intervenant": t.intervenant,
         }
         for t in tickets
     ]
@@ -234,6 +227,9 @@ def get_interventions(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
+    """
+    Retourne l'historique des interventions d'un équipement.
+    """
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
             status_code=404,
@@ -258,6 +254,9 @@ def get_intervention_detail(
     intervention_id: int,
     db: Session = Depends(get_db),
 ):
+    """
+    Retourne le détail d'une intervention.
+    """
     intervention = services.get_intervention_by_id(db, intervention_id)
     if not intervention:
         raise HTTPException(
@@ -278,6 +277,9 @@ def create_intervention(
     id_equipement: str = Path(..., examples=["T1"]),
     db: Session = Depends(get_db),
 ):
+    """
+    Crée une intervention métier pour un équipement donné.
+    """
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
             status_code=404,
@@ -323,6 +325,9 @@ def analyse_interventions(
     ),
     db: Session = Depends(get_db),
 ):
+    """
+    Retourne l'analyse des pannes récurrentes d'un équipement.
+    """
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
             status_code=404,
@@ -361,13 +366,14 @@ async def delete_ticket(ticket_id: int, db: Session = Depends(get_db)):
     Suppression logique d'un ticket.
 
     On ne supprime pas physiquement la ligne de la base.
-    On met simplement son statut à 'Supprimé' pour :
+    On la marque comme 'Supprimé' pour :
     - garder la traçabilité
-    - permettre au TDB et à l'historique d'exclure cette ligne proprement
+    - masquer la ligne dans le TDB
+    - exclure la ligne des KPI et de l'historique affiché
 
     Important :
-    - ici `ticket_id` correspond à l'identifiant réel de la ligne dans la table maintenance
-    - cela permet aussi de supprimer les nouveaux tickets créés localement
+    ici `ticket_id` correspond à l'identifiant réel de la ligne
+    dans la table `maintenance`.
     """
     try:
         ticket = (
@@ -382,14 +388,12 @@ async def delete_ticket(ticket_id: int, db: Session = Depends(get_db)):
                 content="Ticket introuvable.",
             )
 
-        # On évite de retraiter une ligne déjà supprimée
         if ticket.statut == "Supprimé":
             return Response(
                 status_code=200,
                 content="Le ticket était déjà supprimé.",
             )
 
-        # Suppression logique
         ticket.statut = "Supprimé"
         db.commit()
 

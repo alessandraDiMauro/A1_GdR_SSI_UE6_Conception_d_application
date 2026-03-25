@@ -9,9 +9,11 @@ DATA_DIR = "generate_data"
 def create_database():
     """
     Crée la base SQLite et toutes les tables nécessaires.
-    """
 
-    # Supprime la base existante pour repartir propre
+    Important :
+    - si une ancienne base existe, elle est supprimée
+    - on repart donc d'une base propre
+    """
     if os.path.exists(DB_FILE):
         os.remove(DB_FILE)
 
@@ -20,9 +22,9 @@ def create_database():
 
     print("Creating tables...")
 
-    # ------------------------
+    # -------------------------------------------------
     # Table METEO
-    # ------------------------
+    # -------------------------------------------------
     cursor.execute("""
     CREATE TABLE meteo (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,35 +34,52 @@ def create_database():
     );
     """)
 
-    # ------------------------
-    # Table MAINTENANCE (CENTRALE)
-    # ------------------------
+    # -------------------------------------------------
+    # Table MAINTENANCE
+    # -------------------------------------------------
+    # Table centrale du projet.
+    #
+    # Elle regroupe :
+    # - les tickets créés depuis l'interface
+    # - les historiques d'interventions
+    # - les informations nécessaires au TDB
+    #
+    # Rôle des champs principaux :
+    # - id : identifiant réel de la ligne
+    # - ticket_id : numéro fonctionnel du ticket
+    #   (pour les nouveaux tickets, on pourra ensuite lui affecter id)
+    # - description : problème
+    # - intervenant : technicien
+    # - solution : solution proposée / appliquée
     cursor.execute("""
     CREATE TABLE maintenance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
+        -- Identification équipement
         id_equipement TEXT NOT NULL,
         nom_equipement TEXT,
 
+        -- Informations ticket / état
         statut TEXT,
-        description TEXT,         -- problème uniquement
+        description TEXT,
         date_creation TEXT,
 
+        -- Informations intervention / historique
         ticket_id INTEGER,
         date_intervention TEXT,
-
-        intervenant TEXT,         -- technicien
+        intervenant TEXT,
         solution TEXT,
 
+        -- Champs complémentaires
         duree_minutes INTEGER,
         cout REAL,
         pieces_changees TEXT
     );
     """)
 
-    # ------------------------
+    # -------------------------------------------------
     # Table PRODUCTION
-    # ------------------------
+    # -------------------------------------------------
     cursor.execute("""
     CREATE TABLE production (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,9 +89,9 @@ def create_database():
     );
     """)
 
-    # ------------------------
-    # Table PREVISIONS METEO
-    # ------------------------
+    # -------------------------------------------------
+    # Table METEO_PREVISIONS
+    # -------------------------------------------------
     cursor.execute("""
     CREATE TABLE meteo_previsions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,6 +110,11 @@ def create_database():
 def populate_table(table_name, csv_file):
     """
     Remplit une table à partir d’un fichier CSV.
+
+    Comportement :
+    - ignore les lignes vides
+    - ignore les lignes mal formées
+    - continue l'import même si une ligne pose problème
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -104,23 +128,31 @@ def populate_table(table_name, csv_file):
         header = next(reader)
 
         placeholders = ", ".join(["?"] * len(header))
-        query = f"INSERT INTO {table_name} ({', '.join(header)}) VALUES ({placeholders})"
+        query = (
+            f"INSERT INTO {table_name} ({', '.join(header)}) "
+            f"VALUES ({placeholders})"
+        )
 
         count = 0
 
         for row in reader:
+            # Ignore les lignes complètement vides
             if not row or all(not cell.strip() for cell in row):
                 continue
 
+            # Ignore les lignes mal formées
             if len(row) != len(header):
-                print(f"Skipping malformed row: {row}")
+                print(
+                    f"Skipping malformed row in '{csv_file}': "
+                    f"expected {len(header)} values, got {len(row)} -> {row}"
+                )
                 continue
 
             try:
                 cursor.execute(query, row)
                 count += 1
             except Exception as e:
-                print(f"Error inserting row: {row}")
+                print(f"Error inserting row into '{table_name}': {row}")
                 print(e)
 
     conn.commit()
