@@ -102,6 +102,28 @@ def create_database():
     );
     """)
 
+    # --- Create intervention table ---
+    cursor.execute("""
+    CREATE TABLE intervention (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_equipement TEXT NOT NULL,
+        date_intervention TEXT NOT NULL,
+        intervenant TEXT,
+        probleme TEXT,
+        solution TEXT
+    );
+    """)
+
+    # --- Create centrale_parametres table ---
+    cursor.execute("""
+    CREATE TABLE centrale_parametres (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre_turbines INTEGER NOT NULL CHECK (nombre_turbines >= 0),
+        puissance_nominale_mw REAL NOT NULL CHECK (puissance_nominale_mw >= 0),
+        prix_electricite_eur_mwh REAL NOT NULL CHECK (prix_electricite_eur_mwh >= 0)
+    );
+    """)
+
     conn.commit()
     conn.close()
     print("Database and tables created successfully.")
@@ -121,18 +143,20 @@ def populate_table(table_name, csv_file):
 
     csv_path = os.path.join(DATA_DIR, csv_file)
 
-    print(f"Populating '{table_name}' from '{csv_path}'...")
+    print(f"Populating table '{table_name}' from '{csv_path}'...")
 
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.reader(f)
-        header = next(reader)
+        header = next(reader)  # Skip header row
 
+        # Prepare the insert statement
+        # The number of placeholders must match the number of columns in the CSV
         placeholders = ", ".join(["?"] * len(header))
         query = (
-            f"INSERT INTO {table_name} ({', '.join(header)}) "
-            f"VALUES ({placeholders})"
+            f"INSERT INTO {table_name} ({', '.join(header)}) VALUES ({placeholders})"
         )
 
+        # Read data and insert into the table
         count = 0
 
         for row in reader:
@@ -167,6 +191,5 @@ if __name__ == "__main__":
     populate_table("maintenance", "maintenance_data.csv")
     populate_table("production", "production_data.csv")
     populate_table("meteo_previsions", "meteo_previsions_data.csv")
-
     print("\nDatabase generation complete.")
     print(f"Database file: '{DB_FILE}'")
