@@ -13,14 +13,18 @@ from .schemas import AnalyseRead, InterventionCreate, InterventionRead
 from .tdb.router import router as tdb_router
 from .ui_router import router as ui_router
 
-router = APIRouter()
+router = APIRouter(tags=["maintenance"])
 
-# Sous-routeurs
-router.include_router(tdb_router, prefix="/tdb", tags=["TDB Maintenance"])
-router.include_router(ui_router, prefix="", tags=["UI Maintenance"])
+# Sous-routeurs maintenance
+router.include_router(tdb_router, prefix="/tdb", tags=["maintenance"])
+router.include_router(ui_router, prefix="", tags=["maintenance"])
 
 
-@router.post("/tickets")
+@router.post(
+    "/tickets",
+    summary="Créer un ticket de maintenance",
+    description="Crée un nouveau ticket de maintenance à partir du formulaire utilisateur, puis redirige vers le tableau de bord maintenance.",
+)
 async def create_ticket(
     nom: str = Form(...),
     id_equipement: str = Form(...),
@@ -32,16 +36,15 @@ async def create_ticket(
     db: Session = Depends(get_db),
 ):
     """
-    Création d'un ticket de maintenance.
+    Crée un nouveau ticket de maintenance.
 
-    Logique retenue :
-    - on crée une nouvelle ligne dans la table `maintenance`
-    - `description` contient uniquement le problème
-    - `intervenant` contient le nom du technicien
-    - `solution` stocke temporairement le niveau d'urgence
-    - après insertion, on recopie l'identifiant auto-généré `id`
-      dans `ticket_id` pour que les nouveaux tickets aient eux aussi
-      un numéro de ticket visible dans le TDB
+    Cette route est utilisée par le formulaire HTML de création de ticket.
+    Elle enregistre le problème rencontré sur un équipement, le technicien
+    associé, le statut initial et le niveau d'urgence.
+
+    Après création, l'identifiant interne généré automatiquement est recopié
+    dans le champ `ticket_id` afin d'obtenir un numéro de ticket lisible dans
+    le tableau de bord maintenance.
     """
     try:
         new_ticket = MaintenanceTicket(
@@ -54,14 +57,10 @@ async def create_ticket(
             solution=f"Niveau d'urgence: {niv_urgence.strip()}",
         )
 
-        # Étape 1 : insertion
         db.add(new_ticket)
         db.commit()
         db.refresh(new_ticket)
 
-        # Étape 2 : on affecte ticket_id = id
-        # Cela permet d'avoir un vrai numéro de ticket
-        # même pour les nouvelles lignes créées via le formulaire.
         new_ticket.ticket_id = new_ticket.id
         db.commit()
 
@@ -76,10 +75,18 @@ async def create_ticket(
         )
 
 
-@router.get("/nouveau-ticket", response_class=HTMLResponse)
+@router.get(
+    "/nouveau-ticket",
+    response_class=HTMLResponse,
+    summary="Afficher le formulaire de création d'un ticket",
+    description="Affiche une page HTML permettant à un technicien de créer un nouveau ticket de maintenance.",
+)
 async def nouveau_ticket_page():
     """
-    Formulaire HTML de création d'un nouveau ticket.
+    Affiche le formulaire HTML de création d'un ticket de maintenance.
+
+    Cette page permet de renseigner l'équipement concerné, le technicien,
+    le statut, le niveau d'urgence et la description du problème.
     """
     html = """
     <!DOCTYPE html>
@@ -187,12 +194,17 @@ async def nouveau_ticket_page():
     return HTMLResponse(content=html)
 
 
-@router.get("/tickets")
+@router.get(
+    "/tickets",
+    summary="Lister les tickets de maintenance actifs",
+    description="Retourne la liste des tickets de maintenance non supprimés, triés du plus récent au plus ancien.",
+)
 def list_tickets(db: Session = Depends(get_db)):
     """
-    Liste brute des tickets encore actifs.
+    Récupère les tickets de maintenance actifs.
 
-    On exclut les lignes marquées 'Supprimé'.
+    Les tickets dont le statut est `Supprimé` sont exclus afin de ne pas
+    apparaître dans le tableau de bord, les KPI ou les exports.
     """
     tickets = (
         db.query(MaintenanceTicket)
@@ -219,7 +231,8 @@ def list_tickets(db: Session = Depends(get_db)):
 @router.get(
     "/equipements/{id_equipement}/interventions",
     response_model=List[InterventionRead],
-    summary="Lister l'historique d'interventions d'un équipement",
+    summary="Lister les interventions d'un équipement",
+    description="Retourne l'historique des interventions de maintenance associées à un équipement donné.",
 )
 def get_interventions(
     id_equipement: str = Path(..., examples=["T1"]),
@@ -228,7 +241,10 @@ def get_interventions(
     db: Session = Depends(get_db),
 ):
     """
-    Retourne l'historique des interventions d'un équipement.
+    Retourne l'historique paginé des interventions d'un équipement.
+
+    La route vérifie d'abord que l'équipement existe avant de récupérer
+    les interventions associées.
     """
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
@@ -236,33 +252,38 @@ def get_interventions(
             detail=f"Équipement inconnu: {id_equipement}",
         )
 
-    interventions = services.get_interventions(
+    return services.get_interventions(
         db,
         id_equipement,
         limit=limit,
         offset=offset,
     )
-    return interventions
 
 
 @router.get(
     "/interventions/{intervention_id}",
     response_model=InterventionRead,
-    summary="Détail d'une intervention",
+    summary="Afficher le détail d'une intervention",
+    description="Retourne toutes les informations disponibles pour une intervention de maintenance précise.",
 )
 def get_intervention_detail(
     intervention_id: int,
     db: Session = Depends(get_db),
 ):
     """
-    Retourne le détail d'une intervention.
+    Récupère le détail d'une intervention à partir de son identifiant.
+
+    Si aucune intervention ne correspond à l'identifiant fourni, la route
+    retourne une erreur 404.
     """
     intervention = services.get_intervention_by_id(db, intervention_id)
+
     if not intervention:
         raise HTTPException(
             status_code=404,
             detail=f"Intervention introuvable: {intervention_id}",
         )
+
     return intervention
 
 
@@ -270,7 +291,8 @@ def get_intervention_detail(
     "/equipements/{id_equipement}/interventions",
     response_model=InterventionRead,
     status_code=201,
-    summary="Créer une intervention pour un équipement",
+    summary="Créer une intervention de maintenance",
+    description="Crée une intervention de maintenance pour un équipement donné, avec éventuellement un lien vers un ticket existant.",
 )
 def create_intervention(
     payload: InterventionCreate,
@@ -278,7 +300,14 @@ def create_intervention(
     db: Session = Depends(get_db),
 ):
     """
-    Crée une intervention métier pour un équipement donné.
+    Crée une intervention de maintenance pour un équipement.
+
+    La route vérifie :
+    - que l'équipement existe ;
+    - que le ticket associé existe, si un `ticket_id` est fourni ;
+    - que le ticket appartient bien à l'équipement concerné.
+
+    Une fois les contrôles effectués, l'intervention est enregistrée en base.
     """
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
@@ -292,41 +321,51 @@ def create_intervention(
             .filter(MaintenanceTicket.id == payload.ticket_id)
             .first()
         )
+
         if not ticket:
             raise HTTPException(
                 status_code=404,
                 detail=f"Ticket introuvable: {payload.ticket_id}",
             )
+
         if ticket.id_equipement != id_equipement:
             raise HTTPException(
                 status_code=400,
                 detail="ticket_id ne correspond pas à l'équipement demandé",
             )
 
-    created = services.create_intervention(db, id_equipement, payload)
-    return created
+    return services.create_intervention(db, id_equipement, payload)
 
 
 @router.get(
     "/equipements/{id_equipement}/interventions/analyse",
     response_model=AnalyseRead,
-    summary="Analyse des pannes récurrentes (top N problèmes)",
+    summary="Analyser les pannes récurrentes d'un équipement",
+    description="Analyse l'historique des interventions afin d'identifier les problèmes les plus fréquents sur un équipement.",
 )
 def analyse_interventions(
     id_equipement: str = Path(..., examples=["T1"]),
     top_n: int = Query(5, ge=1, le=50),
     start_date: Optional[str] = Query(
         None,
-        description="Filtre date ISO YYYY-MM-DD (inclusive)",
+        description="Date de début au format ISO YYYY-MM-DD, incluse dans l'analyse.",
     ),
     end_date: Optional[str] = Query(
         None,
-        description="Filtre date ISO YYYY-MM-DD (inclusive)",
+        description="Date de fin au format ISO YYYY-MM-DD, incluse dans l'analyse.",
     ),
     db: Session = Depends(get_db),
 ):
     """
-    Retourne l'analyse des pannes récurrentes d'un équipement.
+    Analyse les pannes récurrentes d'un équipement.
+
+    Cette route retourne :
+    - le nombre total d'interventions ;
+    - les problèmes les plus fréquents ;
+    - la période utilisée pour l'analyse.
+
+    Les filtres `start_date` et `end_date` permettent de limiter l'analyse
+    à une période précise.
     """
     if not services.equipment_exists(db, id_equipement):
         raise HTTPException(
@@ -360,20 +399,21 @@ def analyse_interventions(
     }
 
 
-@router.delete("/tickets/{ticket_id}")
-async def delete_ticket(ticket_id: int, db: Session = Depends(get_db)):
+@router.delete(
+    "/tickets/{ticket_id}",
+    summary="Supprimer logiquement un ticket de maintenance",
+    description="Marque un ticket comme supprimé sans l'effacer physiquement de la base de données.",
+)
+async def delete_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+):
     """
-    Suppression logique d'un ticket.
+    Supprime logiquement un ticket de maintenance.
 
-    On ne supprime pas physiquement la ligne de la base.
-    On la marque comme 'Supprimé' pour :
-    - garder la traçabilité
-    - masquer la ligne dans le TDB
-    - exclure la ligne des KPI et de l'historique affiché
-
-    Important :
-    ici `ticket_id` correspond à l'identifiant réel de la ligne
-    dans la table `maintenance`.
+    La ligne n'est pas supprimée physiquement de la base de données.
+    Le statut du ticket est remplacé par `Supprimé` afin de conserver
+    l'historique tout en masquant le ticket du tableau de bord maintenance.
     """
     try:
         ticket = (
